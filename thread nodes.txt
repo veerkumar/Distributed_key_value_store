@@ -1,0 +1,142 @@
+
+
+
+creats the thread
+	std::thread t1(function_1);
+
+	t1.join() // wait for thread to finish
+	t1.detach() // Let the thread go, become daemon
+
+	if(t1.joinable()) // one detached parent cant join the child thread, hence checking if it still can
+		t1.join(); 
+
+
+		argument to thread is always pass by value, even though the function is taking by "&" reference
+		to really pass paramenter as reference, we have to use std::ref(paramter) or pass pointer
+
+		Passing by reference creates database problem/race, as both thread tries to access it
+		but pass by value will create copy, which is waste of memory, hence other method is move
+
+		thread t1(function_1, std::move(s));
+
+		there are some objs in c++ which cant be copied but only moved, eg tread t2 = t1; will give compilation error
+		std: thread t2 = std::move(t1);
+
+
+		print thread id : t1.std::this_thread::get_id()
+
+
+		to avoid oversubscription on thread we can use, thread::hardware_concurrency()
+
+
+		Using mutex, and excpetion occur in CS will lock the thread forever, hence use
+		std::lock_guard<std::mutex> guard(mu) , where mu is mutex varibale, so whenever mutex goes out of context it will be unlocked
+
+		Avoiding deadlock
+		1) prefer locking single mutex
+		2) avoid locking a mutex and then calling a user provided function
+		3) Use std::lock(mu, mu2); std:lock_guard<mutex> locker(_mu, std::adopt_lock(mu2)); std:lock_guard<mutex> locker(_mu2, std::adopt_lock(mu1));
+		4) Lock the mutex in same order;
+		5) Have tree like locking, lower mutex cant be called before higher lock.
+
+		unique_lock is similar to lock_guard, but in lock_guard everything in current scope after lock_guard statment is syncronized. but in unique_lock we can have section of code syncronized
+		 	std::unique_locl<mutex> locker(mu)
+		 			statements
+		 	locker.unlock();
+
+		 	another way, 
+
+		 	std::unique_locl<mutex> locker(mu, std::defer_lock)
+		 		// do parallel execution 
+
+		 	locker.lock()
+		 			statements
+		 	locker.unlock();
+
+		 	we can lock again
+		 		locker.lock()
+
+		 	lock_guard() can never be copied and moved, while unique_lock can be moved,
+		 	unique_lock is heavy/overhead, hence use lock_guard if performace is required
+
+		 if we need to do somthign only once, like opeing the file (lazy way, i.e not in constructor)
+		 we can use std::once_flag _flag;
+		 and in function(where need file opening), std:call_once(_flag,[&](){_f.open("filename.txt");});
+
+		 condition variable
+		 mutex mu;
+		 condition_variable cond;
+		 thread 1:
+		 	locker.unlock()
+		 	cond.notify_one(); notify one thread, to wake up all notify_all()
+		 thread 2:
+		 	locker.lock()
+		 	cond.wait(locker); // wait for being notified
+
+		 but a thread can wakeup spuriously i.e even without notify_me, but in that case we dont want thread to continue untill out condition is met, hence
+		 	
+		 	cond.wait(locker,[&](){return !q.empty();})
+
+
+	To get value from the thread, we can pass varibel by reference and get the value, but it will become the shared variable, hence we need to synconize the variable with mutex and condition_variable (if needed the sequence of execution). which create more clutter in code
+
+	Better approch is future, its a function not class
+
+	std::future<int> fu = std::async(factorial,4);
+	x = fu.get(); // it will wait for factorial function to calculate and return the value. 
+
+	async may or maynot create a thread.
+
+	std::future<int> fu = std::async(std::launch::deferred, factorial,4); // this wont create a thread, when get() is called it will call the function and return the value(in the same thread)
+
+	std::future<int> fu = std::async(std::launch::async, factorial,4);  // this will create the thread
+
+	So above mention "future" will return value from child to parent, but we may need to give value from parent to child, later in stage. so we will need "promise"
+	/* Asynchronously provide data with promise */
+			int factorial(future<int>& f) {
+				// do something else
+
+				int N = f.get();     // If promise is distroyed, exception: std::future_errc::broken_promise
+				cout << "Got from parent: " << N << endl; 
+				int res = 1;
+				for (int i=N; i>1; i--)
+					res *= i;
+
+				return res;
+			}
+
+			int main() {
+				promise<int> p;
+				future<int> f = p.get_future();
+
+				future<int> fu = std::async(std::launch::async, factorial, std::ref(f));
+
+				// Do something else
+				std::this_thread::sleep_for(chrono::milliseconds(20));
+				//p.set_value(5);   
+				//p.set_value(28);  // It can only be set once
+				p.set_exception(std::make_exception_ptr(std::runtime_error("Flat tire")));
+
+				cout << "Got from child thread #: " << fu.get() << endl;
+				return 0;
+			}
+
+	When we have to create 10 similar thread and all are waiting on get() function , then we need to create 10 promise and 10 future.. instead of that we can create 
+
+	promise<int> p;
+	future<int> f = p.get_future();
+	shared_future<int> sf = f.share();
+	future<int> fu = std::async(std::launch::async, factorial, sf); // since shared future can be copied, so passed by value
+
+
+	f.get() can be called only once, so better to check before calling it
+	if(f.valid()) {
+		f.get();
+	}
+
+
+
+
+
+
+

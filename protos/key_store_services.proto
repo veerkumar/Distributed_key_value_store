@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+
+package KeyStore;
+
+service KeyStoreService {
+  rpc KeyStoreRequestHandler (KeyStoreRequest) returns (KeyStoreResponse) {}
+}
+
+/* This single message structure will be used for all type of request
+   only relavent fields will be filled (based on request type)
+*/
+
+message KeyStoreRequest {
+  enum RequestType {
+  READ_QUERY = 0;
+  WRITE_QUERY = 1;
+  READ  = 2;
+  WRITE = 3;
+  }
+  enum ProtocolType {
+      CM = 0;
+      ABD = 1;
+  }
+  RequestType type = 1;
+  ProtocolType protocol = 2;
+  uint32 integer = 3;
+  uint32 cliendId = 4;
+  bytes key = 5;
+  uint32 keySz = 6;
+  bytes  value = 7;         //This will be filled while writing value to the server
+  uint32 valueSz = 8;
+}
+
+/* This single message defination will be used for all type of message
+    Hence, only relavent field in this structure will be filled based on the the msg type
+*/
+message  KeyStoreResponse {
+  enum ReturnCode {
+  ACK   = 0;
+  ERROR = 1;
+  OK    = 2;
+  }
+  enum ProtocolType {
+      CM = 0;
+      ABD = 1;
+  }
+  ReturnCode code = 1;
+  ProtocolType protocol = 2;
+  uint32 integer = 3;
+  uint32 cliendId = 4;
+  bytes key = 5;
+  uint32 keySz = 6;
+  bytes  value = 7;         //This will be filled while reading value from the server
+  uint32 valueSz = 8;
+}
