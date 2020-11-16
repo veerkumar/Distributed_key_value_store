@@ -20,6 +20,8 @@
 #include <bits/stdc++.h>
 #include <cstdint>
 #include <cstring>
+#include <future>
+#include <utility>
 
 
 #include <grpc/grpc.h>
@@ -33,7 +35,7 @@
 
 
 using namespace std;
-enum message_type {
+enum request_type {
 	READ_QUERY = 0,
 	WRITE_QUERY = 1,
 	READ = 2,
@@ -56,13 +58,13 @@ typedef struct tag {
 } tag_t;
 
 typedef struct request_ {
-  message_type type;
+  request_type type;
   protocol_type protocol;
   tag_t tag;
   char *key;
   uint32_t key_sz;
   char *value;
-  uint32_t *value_sz;
+  uint32_t value_sz;
 } request_t;
 
 typedef struct  response_ {
@@ -72,17 +74,17 @@ typedef struct  response_ {
   char *key;
   uint32_t key_sz;
   char *value;
-  uint32_t *value_sz;
+  uint32_t value_sz;
 } response_t;
 
-typedef struct register_service_request_ {
-	service_type type;
-	string ip_port;
-} register_service_request_t;
+// typedef struct register_service_request_ {
+// 	service_type type;
+// 	string ip_port;
+// } register_service_request_t;
 
-typedef struct response_ {
-	return_code code;
-} register_service_response_t;
+// typedef struct response_ {
+// 	return_code code;
+// } register_service_response_t;
 
 extern int get_random_number ();
 

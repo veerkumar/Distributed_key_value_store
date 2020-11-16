@@ -36,34 +36,46 @@ struct Client* client_instance(const uint32_t id, const char* protocol, const st
     return cl;
 
 }
-int main()
-{
-    static struct Server_info servers[] = {
-        {"127.0.0.1", 10000},
-        {"127.0.0.1", 10001},
-        {"127.0.0.1", 10002}};
-        //cout<<servers[0].port<<endl;
-    future<struct Client*> fu = std::async(std::launch::async, client_instance,0, "ABD", servers, sizeof(servers) / sizeof(struct Server_info));
-    //struct Client* abd_clt = client_instance(0, "ABD", servers, sizeof(servers) / sizeof(struct Server_info));
+// int main()
+// {
+//     static struct Server_info servers[] = {
+//         {"127.0.0.1", 10000},
+//         {"127.0.0.1", 10001},
+//         {"127.0.0.1", 10002}};
+//         //cout<<servers[0].port<<endl;
+//     future<struct Client*> fu = std::async(std::launch::async, client_instance,0, "ABD", servers, sizeof(servers) / sizeof(struct Server_info));
+//     //struct Client* abd_clt = client_instance(0, "ABD", servers, sizeof(servers) / sizeof(struct Server_info));
     
-    struct Client* abd_clt = fu.get();
+//     struct Client* abd_clt = fu.get();
     
     
-    cout<<abd_clt->servers[0].port<<endl;
-    cout<<abd_clt->servers[sizeof(servers) / sizeof(struct Server_info) -1 ].port<<endl;
+//     cout<<abd_clt->servers[0].port<<endl;
+//     cout<<abd_clt->servers[sizeof(servers) / sizeof(struct Server_info) -1 ].port<<endl;
     
-    //if(strcmp(abd_clt->protocol, "CM") {
-      //  cout<< "CD";
-    //}
-    if(string(abd_clt->protocol) == "ABD") {
-        cout<< "ABD";
-    }
-     if(string(abd_clt->protocol) == "ABDD") {
-        cout<< "ABDD";
-    }
-    delete abd_clt;
-    cout<<"Hello World";
+//     //if(strcmp(abd_clt->protocol, "CM") {
+//       //  cout<< "CD";
+//     //}
+//     if(string(abd_clt->protocol) == "ABD") {
+//         cout<< "ABD";
+//     }
+//      if(string(abd_clt->protocol) == "ABDD") {
+//         cout<< "ABDD";
+//     }
+//     delete abd_clt;
+//     cout<<"Hello World";
     
+
+//     return 0;
+// }
+int main(int argc, char** argv) {
+    //cout<< "inside mail funtion";
+    cout << argc <<endl;
+    cout<<argv[0]<<endl;
+    string server_address =  string(argv[1]) + ":" + string(argv[2]);
+    cout<<argv[1]<<endl;
+    cout<<argv[2]<<endl;
+    cout<<server_address<<endl;
+    cout<<argv[3]<<endl;
 
     return 0;
 }

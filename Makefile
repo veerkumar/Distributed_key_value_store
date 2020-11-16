@@ -20,11 +20,11 @@ obj1 = $(filter-out obj/server_driver.o, $(obj)) # Object files for userprogram 
 all: system-check obj Client Server
 
 client : obj Client
-Client: $(obj1)
+Client: key_store_services.pb.o key_store_services.grpc.pb.o client_lib.o userprogram.o
 	$(CXX) -g -o $@ $^ $(LDFLAGS) # Link object files and create the client application
 
 server: obj Server
-Server: $(obj2)
+Server: key_store_services.pb.o key_store_services.grpc.pb.o server.o
 	$(CXX) -g -o $@ $^ $(LDFLAGS) # Link object files and create the server application
 
 obj:

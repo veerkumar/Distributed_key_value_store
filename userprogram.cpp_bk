@@ -17,16 +17,13 @@
 
 typedef unsigned int uint;
 
-#define NUMBER_OF_CLIENTS 	1
+#define NUMBER_OF_CLIENTS 	3
 #define SIZE_OF_VALUE 		64
 
 // Define your server information here
 static struct Server_info servers[] = {
-		{"127.0.0.1", 10000}};
-
-// static struct Server_info servers[] = {
-// 		{"127.0.0.1", 10000},
-// 		{"127.0.0.1", 10001};
+		{"127.0.0.1", 10000},
+		{"127.0.0.1", 10001};
 
 static char key[] = "123456"; // We only have one key in this userprogram
 

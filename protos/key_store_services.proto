@@ -25,7 +25,7 @@ message KeyStoreRequest {
   RequestType type = 1;
   ProtocolType protocol = 2;
   uint32 integer = 3;
-  uint32 cliendId = 4;
+  uint32 clientId = 4;
   bytes key = 5;
   uint32 keySz = 6;
   bytes  value = 7;         //This will be filled while writing value to the server
@@ -48,7 +48,7 @@ message  KeyStoreResponse {
   ReturnCode code = 1;
   ProtocolType protocol = 2;
   uint32 integer = 3;
-  uint32 cliendId = 4;
+  uint32 clientId = 4;
   bytes key = 5;
   uint32 keySz = 6;
   bytes  value = 7;         //This will be filled while reading value from the server
