@@ -14,7 +14,8 @@
 #include <vector>
 #include <ctime>
 #include <thread>
-
+#include <iostream>
+using namespace std;
 typedef unsigned int uint;
 
 #define NUMBER_OF_CLIENTS 	1
@@ -22,7 +23,10 @@ typedef unsigned int uint;
 
 // Define your server information here
 static struct Server_info servers[] = {
-		{"127.0.0.1", 10000}};
+		{"127.0.0.1", 10000},{"127.0.0.1", 10001}, {"127.0.0.1", 10002}};
+
+// static struct Server_info servers[] = {
+// 		{"127.0.0.1", 10000},{"127.0.0.1", 10001}};
 
 // static struct Server_info servers[] = {
 // 		{"127.0.0.1", 10000},
@@ -76,6 +80,7 @@ int main(int argc, char* argv[]){
 		// Create ABD clients
 		struct Client* abd_clt[NUMBER_OF_CLIENTS];
 		for(uint i = 0; i < NUMBER_OF_CLIENTS; i++){
+			cout<<"before clinet";
 			abd_clt[i] = client_instance(i, "ABD", servers, sizeof(servers) / sizeof(struct Server_info));
 			if(abd_clt[i] == NULL){
 				fprintf(stderr, "%s\n", "Error occured in creating clients");
@@ -95,6 +100,7 @@ int main(int argc, char* argv[]){
 			}
 
 			// run the thread
+			cout<< "Put opertation Key:" <<key << "size:" <<sizeof(key)<<" value: "<<value<<"value_size "<<sizeof(value)<<endl;
 			threads.push_back(new std::thread(Thread_helper::_put, abd_clt[i], key, sizeof(key), value, sizeof(value)));
 	    }
 	    // Wait for all threads to join
@@ -104,6 +110,7 @@ int main(int argc, char* argv[]){
 		
 		// Do get operations concurrently
 		threads.clear();
+		cout<<"Userprogram: Reading the value" <<endl ;
 		char* values[NUMBER_OF_CLIENTS];
 		uint32_t value_sizes[NUMBER_OF_CLIENTS];
 		for(uint i = 0; i < NUMBER_OF_CLIENTS; i++){
@@ -123,7 +130,7 @@ int main(int argc, char* argv[]){
 				fprintf(stderr, "%s\n", "Error occured in deleting clients");
 				return -1;
 			}
-		}
+		} 
 	}
 	else if(std::string(argv[1]) == "CM"){
 		
@@ -169,6 +176,10 @@ int main(int argc, char* argv[]){
 	    for(uint i = 0; i < NUMBER_OF_CLIENTS; i++){
 	    	threads[i]->join();
 	    }
+	    for(uint i = 0; i < NUMBER_OF_CLIENTS; i++){
+	    	cout<< "Userprogram:   Client: "<<i<<" Value"<< values[i] <<endl;
+	    }
+	    cout<<"******************************"<<endl;
 	    // remmeber after using values, delete them to avoid memory leak
 
 		// Clean up allocated memory in struct Client

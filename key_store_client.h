@@ -46,6 +46,9 @@ typedef struct client_wrapper_i {
 	server_connections *conn;
 } client_wrapper;
 
+
+
 mutex client_list_mutex;
+
 
 std::map<uint32_t, client_wrapper*> client_list;

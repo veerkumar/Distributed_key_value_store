@@ -1,5 +1,6 @@
 #include "commons.h"
 #include "server.h"
+#include "utils.h"
 
 
 int get_random_number () {
@@ -14,27 +15,28 @@ class key_store_service_impl: public KeyStoreService::Service {
 	Status KeyStoreRequestHandler (ServerContext* context, const  KeyStoreRequest* request,
 			KeyStoreResponse* reply) override {
 #ifdef DEBUG_FLAG
-		std::cout << "Got the message "<<endl;
+		std::cout << "\n \n Got the New message "<<endl;
 
-		cout<<"Reqtype    :"<<request->type()<<endl; 
-		cout <<"Protocol  :"<<request->protocol()<<endl;
-		cout <<"Integer   :"<<request->integer()<<endl;
-		cout <<"Client_id :"<<request->clientid()<<endl;
-		cout <<"Key       :"<<request->key()<<endl;
-		cout <<"keysz :"<<request->keysz()<<endl;
-		cout <<"Value     :"<<request->value()<<endl;
-		cout <<"valuesz :"<<request->valuesz()<<endl;
+		cout<<"			Reqtype   :"<<getstring_grpc_request_type(request->type())<<endl; 
+		cout <<"			Protocol  :"<<request->protocol()<<endl;
+		cout <<"			Integer   :"<<request->integer()<<endl;
+		cout <<"			Client_id :"<<request->clientid()<<endl;
+		cout <<"			Key       :"<<request->key()<<endl;
+		cout <<"			keysz 	  :"<<request->keysz()<<endl;
+		if(request->valuesz())
+			cout <<"			Value     :"<<request->value()<<endl;
+		cout <<"			valuesz    :"<<request->valuesz()<<endl;
 #endif
 		if (request->protocol() == KeyStoreRequest::CM) {
 
 #ifdef DEBUG_FLAG
-			std::cout << "Got CM protocol "<<endl;
+			std::cout << "	Got CM protocol "<<endl;
 #endif
 			reply->set_code(KeyStoreResponse::ACK);
 			reply->set_protocol(KeyStoreResponse::CM);
 		} else {
 #ifdef DEBUG_FLAG
-			std::cout << "Got ABD protocol "<<endl;
+			std::cout << "	Got ABD protocol "<<endl;
 #endif
 			reply->set_code(KeyStoreResponse::ACK);
 			reply->set_protocol(KeyStoreResponse::ABD);
@@ -44,10 +46,10 @@ class key_store_service_impl: public KeyStoreService::Service {
 
 			if (request->type() ==  KeyStoreRequest::READ_QUERY) {
 #ifdef DEBUG_FLAG
-			std::cout << "Got request type: READ_QUERY  "<<endl;
+			std::cout << "	Got request type: READ_QUERY  "<<endl;
 #endif
 				/* Fetch the value for the given key and send the response */
-				if(abd_ks_map.find(string(request->key())) != abd_ks_map.end()){
+				if(request->key() != "00000" && (abd_ks_map.find(string(request->key())) != abd_ks_map.end())) {
 					/* Found the key */
 					abd_ks_map_mutex.lock();
 					value_t *temp_value_t = abd_ks_map[string(request->key())];
@@ -59,7 +61,7 @@ class key_store_service_impl: public KeyStoreService::Service {
 					reply->set_valuesz(temp_value_t->value_sz);
 					abd_ks_map_mutex.unlock();
 				} else {
-					cout<<"In Read query, key doesnt exists" << endl;
+					cout<<"	In Read query, key doesnt exists" << endl;
 					reply->set_integer(0);
 					reply->set_clientid(0);
 					reply->set_keysz(0);
@@ -69,17 +71,18 @@ class key_store_service_impl: public KeyStoreService::Service {
 
 			if (request->type() ==  KeyStoreRequest::READ) {
 #ifdef DEBUG_FLAG
-			std::cout << "Got request type: READ"<<endl;
+			std::cout << "	Got request type: READ"<<endl;
 #endif
 			}
 
 			if (request->type() ==  KeyStoreRequest::WRITE_QUERY) {
 				/* This query should return tag value, no need of writing value */
 #ifdef DEBUG_FLAG
-			std::cout << "Got request type: WRITE_QUERY" <<endl;
+			std::cout << "	Got request type: WRITE_QUERY" <<endl;
 #endif
 				value_t *temp_value_t;
 				abd_ks_map_mutex.lock();
+				cout<<"	Locked in WRITE_QUERY\n";
 				if(abd_ks_map.find(string(request->key())) != abd_ks_map.end()){
 					 temp_value_t = abd_ks_map[string(request->key())];	
 				} else {
@@ -94,27 +97,76 @@ class key_store_service_impl: public KeyStoreService::Service {
 				reply->set_integer(temp_value_t->tag.integer);
 				reply->set_clientid(temp_value_t->tag.client_id);
 				abd_ks_map_mutex.unlock();
+				cout<<"	Unlocked WRITE_QUERY\n";
 
 			}
 			if (request->type() ==  KeyStoreRequest::WRITE) {
+#ifdef DEBUG_FLAG
+			std::cout << "	Got request type: WRITE" <<endl;
+#endif
 				value_t *temp_value_t;
 				abd_ks_map_mutex.lock();
+				cout<<"	WRITE Locked\n";
 				if(abd_ks_map.find(string(request->key())) != abd_ks_map.end()){
 					 temp_value_t = abd_ks_map[string(request->key())];
+					 if(temp_value_t->tag.integer < request->integer()) {
+					#ifdef DEBUG_FLAG
+						cout<< "Writing value with new value" <<endl;
+					#endif
+						temp_value_t->tag.integer = request->integer();
+						temp_value_t->tag.client_id = request->clientid();
+
+						//value can change so first delete and the allocate new
+						delete temp_value_t->value;
+						temp_value_t->value = new char[request->valuesz()];
+						temp_value_t->value_sz = request->valuesz();
+						memcpy(temp_value_t->value, request->value().c_str(), request->value().size());
+
+						abd_ks_map[string(request->key())] = temp_value_t;
+					 } else if (temp_value_t->tag.integer == request->integer()) {
+
+					 	 if(temp_value_t->tag.client_id < request->clientid()) {
+					#ifdef DEBUG_FLAG
+						cout<< "Writing value from new bigger client id" <<endl;
+					#endif
+					 	 	temp_value_t->tag.client_id = request->clientid();
+
+						//value can change so first delete and the allocate new
+							delete temp_value_t->value;
+							temp_value_t->value = new char[request->valuesz()];
+							temp_value_t->value_sz = request->valuesz();
+							memcpy(temp_value_t->value, request->value().c_str(), request->valuesz());
+
+							abd_ks_map[string(request->key())] = temp_value_t;
+					 	 }
+
+					 } else {
+					 	cout << "Ignoring this value, as KeyStore has more latest value" << endl;
+					 }
 				} else {
+					#ifdef DEBUG_FLAG
+						cout<< "Writing new value" <<endl;
+					#endif
 					temp_value_t = new value_t;
+					temp_value_t->tag.integer = request->integer();
+					temp_value_t->tag.client_id = request->clientid();
+
+					temp_value_t->key = new char[request->key().size()];
+					temp_value_t->key_sz = request->keysz();
+					memcpy(temp_value_t->key, request->key().c_str(), request->key().size());
+
+					temp_value_t->value = new char[request->value().size()];
+					temp_value_t->value_sz = request->valuesz();
+					memcpy(temp_value_t->value, request->value().c_str(), request->value().size());
+
+					abd_ks_map[string(request->key())] = temp_value_t;
 				}
 
-				temp_value_t->tag.integer = request->integer();
-				temp_value_t->tag.client_id = request->clientid();
-				temp_value_t->key = new char[request->key().size()];
-				temp_value_t->key_sz = request->keysz();
-				memcpy(temp_value_t->key, request->key().c_str(), request->key().size());
-				temp_value_t->value = new char[request->value().size()];
-				temp_value_t->key_sz = request->valuesz();
-				memcpy(temp_value_t->value, request->value().c_str(), request->value().size());
-				abd_ks_map[string(request->key())] = temp_value_t;
+
+				cout<< "	Size of key_value store : " << abd_ks_map.size();
 				abd_ks_map_mutex.unlock();
+				cout<<"	  WRITE Unlocked\n";
+				
 			} // end of WRITE 
 		} // end of ABD 
 		
@@ -143,10 +195,21 @@ void RunServer(string server_address) {
 }
 
 int main(int argc, char** argv) {
+	value_t *temp_value_t;
 	if (argc != 4){
 		cout << "Please pass 3 arguments, \n serverip portnumber Protocol(ABD/CM)"<<endl;
 	}
 	string server_address =  string(argv[1]) + ":" + string(argv[2]);
+
+	/* Insert default stringin mapt*/
+	temp_value_t = new value_t;
+	temp_value_t->tag.integer = 0;
+	temp_value_t->tag.client_id = 0;
+	temp_value_t->key = new char[sizeof("00000")];
+	temp_value_t->key_sz = sizeof("00000");
+	memcpy(temp_value_t->key, "00000", sizeof("00000"));
+	temp_value_t->key_sz = 0;
+	abd_ks_map["00000"] = temp_value_t;
 
 	RunServer(server_address);
 

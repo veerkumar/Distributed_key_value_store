@@ -1,6 +1,7 @@
 #include "commons.h"
 #include "client.h"
 #include "key_store_client.h"
+#include "utils.h"
 
 server_connections::server_connections(struct Server_info* servers, uint32_t number_of_servers){
 	string key;  
@@ -8,7 +9,7 @@ server_connections::server_connections(struct Server_info* servers, uint32_t num
 	for (uint32_t i = 0; i < number_of_servers; i++) {
 		key = string(servers[i].ip) + ":" + to_string(servers[i].port);
 #ifdef DEBUG_FLAG
-                 cout<<"\n\n"<<__func__ <<": Creating new connection with file server :"<< key;
+                 cout<<"\n\n"<<__func__ <<": Creating new connection with file server :"<< key <<endl;
 #endif
 		connections[key] = new key_store_client(grpc::CreateChannel(key, grpc::InsecureChannelCredentials()));
 	}
@@ -26,10 +27,10 @@ struct Client* client_instance(const uint32_t id, const char* protocol, const st
 {
 	struct Client* cl  = new Client;
 	cl->id = id;
-	memcpy(&cl->protocol, protocol, sizeof(protocol));
+	memcpy(&cl->protocol, protocol, sizeof(*protocol));
 	cl->number_of_servers = number_of_servers;
 	cl->servers = new struct Server_info[number_of_servers];
-	cout<<sizeof(struct Server_info)*number_of_servers;
+	cout<<(sizeof(struct Server_info)*number_of_servers) << " " << number_of_servers <<endl;
 	memcpy(cl->servers, servers, sizeof(struct Server_info)*number_of_servers);
 
 	client_wrapper *cl_w = new struct client_wrapper_i;
@@ -85,47 +86,18 @@ make_req_payload (KeyStoreRequest *payload,
 		
 	// }
 }
-request_type
-get_c_request_type(KeyStoreRequest::RequestType type) {
-	switch (type) {
-		case KeyStoreRequest::READ:
-			return READ;
-		case KeyStoreRequest::READ_QUERY:
-			return READ_QUERY;
-		case KeyStoreRequest::WRITE:
-			return WRITE;
-		case KeyStoreRequest::WRITE_QUERY:
-			return WRITE_QUERY;
-		default:
-			cout<<"get_ctype: wrong request type";	
-	}
-	return READ;
-}
-
-return_code
-get_c_return_code(KeyStoreResponse::ReturnCode type) {
-	switch (type) {
-		case KeyStoreResponse::ACK:
-			return ACK;
-		case KeyStoreResponse::ERROR:
-			return ERROR;
-		case KeyStoreResponse::OK:
-			return OK;
-		default:
-			cout<<"get_ctype: wrong return code";	
-	}
-	return OK;
-}
 
 void 
 print_request(request_t *req) {
 	cout<< "Printing request" <<endl;
-	cout<<" Type     :"<<req->type<<endl;
+	cout<<" Type     :"<< getstring_c_request_type(req->type)<<endl;
+	cout<<" protocol     :"<<req->protocol<<endl;
 	cout<<" Integer  :"<<req->tag.integer<<endl;
 	cout<<" Client_id:"<<req->tag.client_id<<endl;
 	cout<<" key      :"<<req->key<<endl;
 	cout<<" key_sz   :"<<req->key_sz<<endl;
-	cout<<" value    :"<<req->value<<endl;
+	if(req->value_sz)
+		cout<<" value    :"<<req->value<<endl;
 	cout<<" value_sz:"<<req->value_sz<<endl;
 }
 
@@ -184,7 +156,7 @@ extract_response_from_payload(KeyStoreResponse *Response, KeyStoreRequest req, b
 
 void 
 send_to_server_handler(key_store_client* connection_stub, 
-				promise<response_t*>& keyStoreResponsePromise, KeyStoreRequest *req){
+				promise<response_t*>&& keyStoreResponsePromise, KeyStoreRequest *req){
 //send_to_server_handler(key_store_client* connection_stub, KeyStoreRequest *req){
 		KeyStoreResponse Response;
 		ClientContext Context;
@@ -199,8 +171,10 @@ send_to_server_handler(key_store_client* connection_stub,
 				c_response = extract_response_from_payload(&Response, *req, 0);
 #ifdef DEBUG_FLAG
 			std::cout << "Got the response from server"<<endl;
+			cout<<"Promise address" <<&keyStoreResponsePromise<<endl;
 #endif
 				keyStoreResponsePromise.set_value(c_response);
+				std::cout << "Wrote back"<<endl;
 			} else {
 				std::cout << status.error_code() << ": " << status.error_message()
 					<< std::endl;
@@ -226,24 +200,29 @@ void send_message_to_all_server(promise<vector<response_t*>>& prom, client_wrapp
 	print_request(c_req);
 	int i = 0;
 	for (auto it = cw->conn->connections.begin(); it!=cw->conn->connections.end(); it++) {
-		vec_prom.emplace_back(promise<response_t*>());
-		vec_fut.emplace_back(vec_prom[i].get_future());
+		promise<response_t*> pm = promise<response_t*>();
+		future<response_t*> fu = pm.get_future();
+		vec_prom.emplace_back(std::move(pm));
+		vec_fut.emplace_back(std::move(fu));
 		vec_temp_fut.emplace_back(std::async(std::launch::async, send_to_server_handler, 
-								 it->second, ref(vec_prom[i]), &ReqPayload));
-//		vec_temp_fut.emplace_back(std::async(std::launch::async, send_to_server_handler, 
-//								 it->second, &ReqPayload));
+								 it->second, std::move(vec_prom[i]), &ReqPayload));
+		// vec_temp_fut.emplace_back(std::async(std::launch::async, send_to_server_handler, 
+		// 						 it->second, ref(vec_prom[i]), &ReqPayload));
+
 		i++;
 	}
+	cout << "Majority" <<majority<<endl;
+	int count = 0;
 	while(1) {
 			for (auto &future:vec_fut){
-            span = std::chrono::system_clock::now() + std::chrono::milliseconds(10);
-           
-            if (future.valid() && future.wait_until(span)== std::future_status::ready) {
-                cout<<"\nfound true" <<endl;
-                vec_resp.push_back(future.get());
-                num_resp_collected++;
-            } 
-        }
+            	span = std::chrono::system_clock::now() + std::chrono::milliseconds(10);
+           		//cout<<count++ <<endl;
+	            if (future.valid() && future.wait_until(span)== std::future_status::ready) {
+	                cout<<"\nfound true" <<endl;
+	                vec_resp.push_back(future.get());
+	                num_resp_collected++;
+	            } 
+        	}
         if(num_resp_collected >= majority){
             cout<<"Got the majority:"<< num_resp_collected<< ", returning now"<<endl;
             prom.set_value(vec_resp);
@@ -254,9 +233,14 @@ void send_message_to_all_server(promise<vector<response_t*>>& prom, client_wrapp
 	// vec_prom, vec_fut and vec_temp_fut are local variable, will be freed
 }
 void delete_response_t(response_t *resp) {
-	delete resp->key;
-	delete resp->value;
+	if(resp->key_sz) delete resp->key;
+	if(resp->value_sz)delete resp->value;
 	delete resp;
+}
+void delete_request_t(request_t *rep) {
+	if(rep->key_sz) delete rep->key;
+	if(rep->value_sz)delete rep->value;
+	delete rep;
 }
 
 
@@ -302,10 +286,13 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 		/* Send the write_query */
 		request_t *c_req = new request_t;
 		c_req->type = WRITE_QUERY;
+		c_req->protocol = ABD;
 		c_req->tag.integer = 0; // Since query will fetch the integer
 		c_req->tag.client_id = c->id;
+		c_req->key = new char[key_size];
 		memcpy(c_req->key, key, key_size);
 		c_req->key_sz = key_size;
+		c_req->value_sz = 0;
 
 		promise<vector<response_t*>> pm =  promise<vector<response_t*>>();
     	future <vector<response_t*>> fu = pm.get_future();
@@ -319,7 +306,8 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 
 		/*Send the write request*/
 		c_req->type = WRITE;
-		c_req->tag.integer = max_resp->tag.integer + 1;	
+		c_req->tag.integer = max_resp->tag.integer + 1;
+		c_req->value = new char[value_size];	
 		memcpy(c_req->value, value, value_size);
 		c_req->value_sz = value_size;
 
@@ -332,6 +320,7 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 		vec_c_resp = fu1.get();
 		max_resp = find_majority_tag(vec_c_resp); 
 		delete_response_t(max_resp); 
+		delete_request_t (c_req); 
 		return 0;
 	}
 
@@ -359,10 +348,13 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 		/* Send the write_query */
 		request_t *c_req = new request_t;
 		c_req->type = READ_QUERY;
+		c_req->protocol = ABD;
 		c_req->tag.integer = 0; // Since query will fetch the integer
 		c_req->tag.client_id = c->id;
+		c_req->key = new char[key_size];
 		memcpy(c_req->key, key, key_size);
 		c_req->key_sz = key_size;
+		c_req->value_sz = 0;
 
 		promise<vector<response_t*>> pm =  promise<vector<response_t*>>();
     	future <vector<response_t*>> fu = pm.get_future();
@@ -377,6 +369,7 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			c_req->type = WRITE;
 			c_req->tag.integer = max_resp->tag.integer;
 			c_req->tag.client_id = max_resp->tag.client_id;	
+			c_req->value = new char[max_resp->value_sz];
 			memcpy(c_req->value, max_resp->value, max_resp->value_sz);
 			c_req->value_sz = max_resp->value_sz;
 
@@ -389,6 +382,16 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			vec_c_resp = fu1.get();
 			max_resp = find_majority_tag(vec_c_resp); 
 			delete_response_t(max_resp); 
+			/* fill the result */
+			*value = new char[c_req->value_sz];
+			memcpy(*value, c_req->value, c_req->value_sz);
+			*value_size = c_req->value_sz;
+			#ifdef DEBUG_FLAG
+			cout <<"Returning following value in GET operation :" <<endl;
+			cout<<"		Value:"<<*value <<endl;
+			cout<<"		Size :"<<*value_size<<endl;
+			#endif
+			delete_request_t(c_req);
 		} else {
 			cout<< "Read was issued on non-existent key" <<endl;
 			return -1;
@@ -409,10 +412,11 @@ int client_delete(struct Client* c)
 		cout<<"Number of clients before deletion" << client_list.size()<<endl;
 		cout<<"Deleting server connecitons"<<endl;
 	#endif
-		for (auto it =  (client_list[id])->conn->connections.begin(); it != (client_list[id])->conn->connections.end();it++ ) {
-			cout<<"Deleteing server connection" <<endl;
-			delete it->second;
-		}
+		/* No need to free connection as it will be Freed in distructor of the object */
+		// for (auto it =  (client_list[id])->conn->connections.begin(); it != (client_list[id])->conn->connections.end();it++ ) {
+		// 	cout<<"Deleteing server connection" <<endl;
+		// 	delete it->second;
+		// }
 
 		delete  (client_list[id])->conn;
 
