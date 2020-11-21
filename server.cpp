@@ -93,7 +93,9 @@ class key_store_service_impl: public KeyStoreService::Service {
 					reply->set_key(temp_value_t->key,temp_value_t->key_sz);
 					reply->set_keysz(temp_value_t->key_sz);
 					reply->set_value(temp_value_t->value,temp_value_t->value_sz);
+					#ifdef DEBUG_FLAG
 					cout<<"Returning value"<<temp_value_t->value<<endl;
+					#endif
 					reply->set_valuesz(temp_value_t->value_sz);
 					reply->set_code(KeyStoreResponse::OK);
 					cm_ks_map_mutex.unlock();
@@ -105,12 +107,6 @@ class key_store_service_impl: public KeyStoreService::Service {
 					reply->set_valuesz(0);
 					reply->set_code(KeyStoreResponse::ERROR);
 				}
-				// cout<<"IN READ: Size of cm_ks_map"<<cm_ks_map.size()<<endl;
-				// for(auto it  =cm_ks_map.begin(); it!= cm_ks_map.end();it++){
-				// 	cout<<"Key:"<<it->first<<" Size:"<<it->first.length()<<endl;
-				// 	cout<<"Key_in_value_t:"<<(it->second)->key<<" Size:"<<(it->second)->key_sz<<endl;
-				// 	cout<<"Key_in_value_t:"<<(it->second)->value<<" Size:"<<(it->second)->value_sz<<endl;
-				// }
 
 			}
 
@@ -141,7 +137,6 @@ class key_store_service_impl: public KeyStoreService::Service {
 
 					temp_value_t->key = new char[request->keysz()+1];
 					memset(temp_value_t->key,0, request->keysz()+1);
-					cout<<"request->key().size()"<<request->key().size()<<"string(request->key()):"<<string(request->key()).length()<<endl;
 					temp_value_t->key_sz = request->keysz();
 					memcpy(temp_value_t->key, request->key().c_str(), request->keysz());
 
@@ -151,9 +146,7 @@ class key_store_service_impl: public KeyStoreService::Service {
 					memcpy(temp_value_t->value, request->value().c_str(), request->valuesz());
 
 					cm_ks_map[string(temp_value_t->key)] = temp_value_t;
-					string key = string(temp_value_t->key);
-					//cout<<"While writiing***************"<<key.length()<<endl;
-					//cout<<"While writiing***************"<<string(request->key().c_str()).length()<<endl;
+					
 				}
 				//Append this new value to outqueue
 				t[mynodenumber] = t[mynodenumber]+1;
@@ -164,13 +157,6 @@ class key_store_service_impl: public KeyStoreService::Service {
 				reply->set_keysz(0);
 				reply->set_valuesz(0);
 				reply->set_code(KeyStoreResponse::OK);
-
-				// cout<<"IN WRITE: Size of cm_ks_map"<<cm_ks_map.size()<<endl;
-				// for(auto it  =cm_ks_map.begin(); it!= cm_ks_map.end();it++){
-				// 	cout<<"Key:"<<it->first<<" Size:"<<it->first.length()<<endl;
-				// 	cout<<"Key_in_value_t:"<<(it->second)->key<<" Size:"<<(it->second)->key_sz<<endl;
-				// 	cout<<"Key_in_value_t:"<<(it->second)->value<<" Size:"<<(it->second)->value_sz<<endl;
-				// }
 
 			}
 			
@@ -222,7 +208,6 @@ class key_store_service_impl: public KeyStoreService::Service {
 				#endif
 				value_t *temp_value_t;
 				abd_ks_map_mutex.lock();
-				cout<<"	Locked in WRITE_QUERY\n";
 				if(abd_ks_map.find(string(request->key().c_str())) != abd_ks_map.end()) {
 					 temp_value_t = abd_ks_map[string(request->key().c_str())];	
 				} else {
@@ -237,7 +222,6 @@ class key_store_service_impl: public KeyStoreService::Service {
 				reply->set_integer(temp_value_t->tag.integer);
 				reply->set_clientid(temp_value_t->tag.client_id);
 				abd_ks_map_mutex.unlock();
-				cout<<"	Unlocked WRITE_QUERY\n";
 
 			}
 			if (request->type() ==  KeyStoreRequest::WRITE) {
@@ -246,7 +230,6 @@ class key_store_service_impl: public KeyStoreService::Service {
 				#endif
 				value_t *temp_value_t;
 				abd_ks_map_mutex.lock();
-				cout<<"	WRITE Locked\n";
 				if(abd_ks_map.find(string(request->key().c_str())) != abd_ks_map.end()) {
 					 temp_value_t = abd_ks_map[string(request->key().c_str())];
 					 if(temp_value_t->tag.integer < request->integer()) {
@@ -278,8 +261,6 @@ class key_store_service_impl: public KeyStoreService::Service {
 							memset(temp_value_t->value, 0, request->valuesz()+1);
 							temp_value_t->value_sz = request->valuesz();
 							memcpy(temp_value_t->value, request->value().c_str(), request->valuesz());
-							//string key = string(request->key());
-							//cout<<"While writiing***************"<<key.length()<<endl;
 							abd_ks_map[string(request->key().c_str())] = temp_value_t;
 					 	 }
 
@@ -307,10 +288,11 @@ class key_store_service_impl: public KeyStoreService::Service {
 					abd_ks_map[string(request->key().c_str())] = temp_value_t;
 				}
 
-
+				#ifdef DEBUG_FLAG
 				cout<< "	Size of key_value store : " << abd_ks_map.size();
+				#endif
 				abd_ks_map_mutex.unlock();
-				cout<<"	  WRITE Unlocked\n";
+				
 				reply->set_integer(0);
 				reply->set_clientid(0);
 				reply->set_keysz(0);
@@ -345,7 +327,7 @@ void RunServer(string server_address) {
 
 void cm_sending_thread () {
 
-	cout<<"Starting CM, sending thread";
+	cout<<"Starting CM Message sending thread"<<endl;
 	
 	while(1) {
 
@@ -363,8 +345,9 @@ void cm_sending_thread () {
 			
 			send_message_to_all_cm_server(ref(pm), cm_req);
 			string result =  fu.get();
+			#ifdef DEBUG_FLAG
 			cout<<"Got result from send_message_to_all_cm_server :" << result;
-
+			#endif 
 			cm_outque_mutex.lock();
 			cm_message_outqueue.pop();
 			cm_outque_mutex.unlock();
@@ -408,24 +391,25 @@ void cm_internal_processing_thread (){
 			cm_message_request_t *req = cm_message_pq.top();
 			cm_pq_mutex.unlock();
 			bool all_but_j = true;
-			cout<<"Front of the queue"<<endl;
-			print_vec_clk(req->vec_clk, serverlist_size);
-			cout<<endl;
+			#ifdef DEBUG_FLAG
+				cout<<"Front of the priority queue"<<endl;
+				print_vec_clk(req->vec_clk, serverlist_size);
+				cout<<endl;
 
-			cout<<"My current queue" <<endl;
-			print_vec_clk(t, serverlist_size);
-			cout<<endl;
+				cout<<"My current vector clock" <<endl;
+				print_vec_clk(t, serverlist_size);
+				cout<<endl;
+			#endif 
 			for (uint32_t i = 0; i < req->vecclk_sz; i++) {
 				if (i != req->nodenum && req->vec_clk[i] > t[i]){
 					all_but_j =  false;
-					cout<<"Front is not yet ready"<<endl;
+					#ifdef DEBUG_FLAG
+						cout<<"Front is not yet ready"<<endl;
+					#endif
 				}
 			}
 			if(all_but_j && req->vec_clk[req->nodenum] == (t[req->nodenum] +1)){
 				string key = string(req->key);
-				#ifdef DEBUG_FLAG
-					cout<<"CM_processing_thread: Processing key:" <<key<<" Size:"<<key.length()<<string(req->key).length()<<req->key_sz<<endl;
-				#endif
 				value_t *temp_value_t;
 				cm_ks_map_mutex.lock();
 				if(cm_ks_map.find(key) != cm_ks_map.end()){
@@ -445,7 +429,9 @@ void cm_internal_processing_thread (){
 				memset(temp_value_t->value, 0, req->value_sz+1);
 				temp_value_t->value_sz = req->value_sz;
 				memcpy(temp_value_t->value, req->value, req->value_sz);
-				cout<<"New value became"<<temp_value_t->value<<endl;
+				#ifdef DEBUG_FLAG
+					cout<<"New value became"<<temp_value_t->value<<endl;
+				#endif
 				cm_ks_map[key] = temp_value_t; 
 
 				cm_ks_map_mutex.unlock();
@@ -462,27 +448,28 @@ void cm_internal_processing_thread (){
 				delete_cm_request_t(req); //Free memory for message
 			}
 		} 
+		#ifdef DEBUG_FLAG
 		count++;
 		//if(cm_message_pq.empty()) {
 		if(count >1000) {
 			cout<<"Size of cm_ks_map"<<cm_ks_map.size()<<endl;
-			// for(auto it  =cm_ks_map.begin(); it!= cm_ks_map.end();it++){
-			// 	cout<<"Key:"<<it->first<<" Size:"<<it->first.length()<<endl;
-			// 	cout<<"Key_in_value_t:"<<(it->second)->key<<" Size:"<<(it->second)->key_sz<<endl;
-			// 	cout<<"Key_in_value_t:"<<(it->second)->value<<" Size:"<<(it->second)->value_sz<<endl;
-			// }
+			for(auto it  =cm_ks_map.begin(); it!= cm_ks_map.end();it++){
+				cout<<"Key:"<<it->first<<" Size:"<<it->first.length()<<endl;
+				cout<<"Key_in_value_t:"<<(it->second)->key<<" Size:"<<(it->second)->key_sz<<endl;
+				cout<<"Key_in_value_t:"<<(it->second)->value<<" Size:"<<(it->second)->value_sz<<endl;
+			}
 			cout<<"My vectore clock: ";
 			for(auto it  =0; it!= serverlist_size ;it++){
 				cout<<t[it]<<" ";
 			}
 			cout<<endl;
-			
-			cout<<"\n Done provessing" << endl;
+			cout<<"\n Done processing" << endl;
 			count = 0;
 		}
+		#endif
 		    
-			std::this_thread::sleep_for (std::chrono::milliseconds(50));
-		//}
+			std::this_thread::sleep_for (std::chrono::milliseconds(20));
+		
 	}
 }
 
@@ -515,7 +502,9 @@ int main(int argc, char** argv) {
 	} else {
 		server_address =  "127.0.0.1:" + string(argv[1]);
 		mylocation = stoi(string(argv[3]));
+		#ifdef DEBUG_FLAG
 		cout<<"mylocation:" <<mylocation<<endl;
+		#endif
 		//Reading file
 		std::ifstream infile("server_info.txt");
 		std::vector<string> server_list;

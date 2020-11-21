@@ -44,7 +44,7 @@ $(obj): obj/%.o: %.cpp
 
 .PHONY: clean
 clean:
-	rm -rf obj Client Server 
+	rm -rf obj Client Server *.o
 
 PROTOC_CMD = which $(PROTOC)
 PROTOC_CHECK_CMD = $(PROTOC) --version | grep -q libprotoc.3

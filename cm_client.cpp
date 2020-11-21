@@ -9,13 +9,15 @@ cm_server_connections::cm_server_connections(vector<string> server_list, int myl
 	/* Create connection with all servers */
 	for (int i = 0; i < int(server_list.size()); i++) {
 		if(i!= mylocation) {
-#ifdef DEBUG_FLAG
-                 cout<<"\n\n"<<__func__ <<": Creating new connection with file server :"<< key <<endl;
-#endif
+			#ifdef DEBUG_FLAG
+				cout<<"\n\n"<<__func__ <<": Creating new connection with file server :"<< key <<endl;
+			#endif
 			connections[server_list[i]] = new cm_client(grpc::CreateChannel(server_list[i], 
 											grpc::InsecureChannelCredentials()));
 		} else {
-			cout<< "Not creating conneciton with self";
+			#ifdef DEBUG_FLAG
+				cout<< "Not creating conneciton with self";
+			#endif
 		}
 	}
 }
@@ -73,17 +75,17 @@ void send_to_cm_server_handler(cm_client* connection_stub, CMRequest *req) {
 		ClientContext Context;
 		string c_response;
 
-#ifdef DEBUG_FLAG
+		#ifdef DEBUG_FLAG
 			std::cout << "Sending message to server "<<endl;
-#endif
+		#endif
 
 		Status status = connection_stub->stub_->CMRequestHandler(&Context, *req, &Response);
 		if (status.ok()) {
 				c_response = extract_cm_response_from_payload(&Response);
-#ifdef DEBUG_FLAG
-			std::cout << "Got the response from server: "<<c_response <<endl;
-#endif
-				std::cout << "Wrote back"<<endl;
+				#ifdef DEBUG_FLAG
+					std::cout << "Got the response from server: "<<c_response <<endl;
+					std::cout << "Wrote back"<<endl;
+				#endif
 			} else {
 				std::cout << status.error_code() << ": " << status.error_message()
 					<< std::endl;
@@ -107,10 +109,14 @@ void send_message_to_all_cm_server(promise<string>& prom,  cm_message_request_t 
 	std::vector<std::thread*> threads;
 
 	make_cm_request_payload(&ReqPayload, c_req);
+	#ifdef DEBUG_FLAG
 	print_cm_request(c_req);
+	#endif
 	
 	for (auto it = cm_connection_obj->connections.begin(); it!= cm_connection_obj->connections.end(); it++) {
-		cout<<"CM_client: Sending to server handler" <<endl;
+		#ifdef DEBUG_FLAG
+			cout<<"CM_client: Sending to server handler" <<endl;
+		#endif
 		threads.push_back(new std::thread(send_to_cm_server_handler, 
 								 it->second, &ReqPayload));
 	}

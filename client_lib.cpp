@@ -121,16 +121,16 @@ extract_response_from_payload(KeyStoreResponse *Response, KeyStoreRequest req, b
 
 	
 	if (overide_key) {
-	#ifdef DEBUG_FLAG
-		cout<<"	"<<__func__<<"Response key size= "<<Response->key().size();
-		cout<<"	"<<__func__<<"Response key received = "<<Response->key();
-	#endif
+		#ifdef DEBUG_FLAG
+			cout<<"	"<<__func__<<"Response key size= "<<Response->key().size();
+			cout<<"	"<<__func__<<"Response key received = "<<Response->key();
+		#endif
 		c_response->key = new char[Response->keysz()+1];
 		memset(c_response->key, 0, Response->keysz()+1);
 		memcpy(c_response->key, Response->key().c_str(), Response->keysz());
-	#ifdef DEBUG_FLAG
-		cout<<"	"<<__func__<<"Response after mem_cpy = "<<c_response->key;
-	#endif
+		#ifdef DEBUG_FLAG
+			cout<<"	"<<__func__<<"Response after mem_cpy = "<<c_response->key;
+		#endif
 	} else {
 		#ifdef DEBUG_FLAG
 			cout<<"	"<<__func__<<"\tResponse key received = "<<req.key()<<endl;
@@ -169,17 +169,17 @@ send_to_server_handler(key_store_client* connection_stub,
 		ClientContext Context;
 		response_t *c_response = NULL; // This will be returned back in Promise
 
-#ifdef DEBUG_FLAG
-			std::cout << "Sending message to server "<<endl;
-#endif
+		#ifdef DEBUG_FLAG
+					std::cout << "Sending message to server "<<endl;
+		#endif
 
 		Status status = connection_stub->stub_->KeyStoreRequestHandler(&Context, *req, &Response);
 		if (status.ok()) {
 				c_response = extract_response_from_payload(&Response, *req, 0);
-#ifdef DEBUG_FLAG
-			std::cout << "Got the response from server"<<endl;
-			cout<<"Promise address" <<&keyStoreResponsePromise<<endl;
-#endif
+			#ifdef DEBUG_FLAG
+						std::cout << "Got the response from server"<<endl;
+						cout<<"Promise address" <<&keyStoreResponsePromise<<endl;
+			#endif
 				keyStoreResponsePromise.set_value(c_response);
 				std::cout << "Wrote back"<<endl;
 			} else {
@@ -204,7 +204,9 @@ void send_message_to_all_server(promise<vector<response_t*>>& prom, client_wrapp
 
 
 	make_req_payload(&ReqPayload, c_req);
+	#ifdef DEBUG_FLAG
 	print_request(c_req);
+	#endif
 	int i = 0;
 	for (auto it = cw->conn->connections.begin(); it!=cw->conn->connections.end(); it++) {
 		promise<response_t*> pm = promise<response_t*>();
@@ -218,19 +220,22 @@ void send_message_to_all_server(promise<vector<response_t*>>& prom, client_wrapp
 
 		i++;
 	}
-	cout << "Majority" <<majority<<endl;
+	#ifdef DEBUG_FLAG
+		cout << "Majority is: " <<majority<<endl;
+	#endif
 	while(1) {
 			for (auto &future:vec_fut){
             	span = std::chrono::system_clock::now() + std::chrono::milliseconds(10);
            		//cout<<count++ <<endl;
 	            if (future.valid() && future.wait_until(span)== std::future_status::ready) {
-	                cout<<"\nfound true" <<endl;
 	                vec_resp.push_back(future.get());
 	                num_resp_collected++;
 	            } 
         	}
         if(num_resp_collected >= majority){
-            cout<<"Got the majority:"<< num_resp_collected<< ", returning now"<<endl;
+        	#ifdef DEBUG_FLAG
+            	cout<<"Got the majority:"<< num_resp_collected<< ", returning now"<<endl;
+            #endif
             prom.set_value(vec_resp);
             break;
         }
@@ -302,8 +307,9 @@ void send_message_to_one_server(promise<response_t*>& prom, client_wrapper *cw, 
     if (fu.valid()) {
         c_resp = fu.get();
     } 
-    
-    cout<<"CM: Got the Response returning now"<<endl;
+    #ifdef DEBUG_FLAG
+    	cout<<"CM: Got the Response returning now"<<endl;
+    #endif
     prom.set_value(c_resp);    
 	// caller will clean the "vec_resp"
 	// vec_prom, vec_fut and vec_temp_fut are local variable, will be freed
@@ -314,7 +320,9 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 	
 	vector<response_t*> vec_c_resp ;
 	response_t *max_resp = NULL;
-	cout<<"key_size" <<key_size<<endl;
+	#ifdef DEBUG_FLAG
+		cout<<"key_size" <<key_size<<endl;
+	#endif
 
 
 	/* Based on the client ID, fetch the server connection and call the function */
@@ -398,15 +406,15 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 
 	vector<response_t*> vec_c_resp;
 	response_t *max_resp = NULL;
-	cout<<"key_size" <<key_size<<endl;
-
+	
 
 	/* Based on the client ID, fetch the server connection and call the function */
 	if (string(c->protocol) == "CM") {
-		#ifdef DEBUG_FLAG
+		
 		response_t *c_resp = NULL;
-		cout<< "CM protocol: Get request"<<endl;
-	#endif
+		#ifdef DEBUG_FLAG
+			cout<< "CM protocol: Get request"<<endl;
+		#endif
 		request_t *c_req = new request_t;
 		c_req->type = READ;
 		c_req->protocol = CM;
@@ -427,9 +435,9 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 		(*value)[c_resp->value_sz] = '\0';
 		*value_size = c_resp->value_sz;
 		#ifdef DEBUG_FLAG
-		cout <<"Returning following value in CM GET operation :" <<endl;
-		cout<<"		Value:"<<*value <<endl;
-		cout<<"		Size :"<<*value_size<<endl;
+			cout <<"Returning following value in CM GET operation :" <<endl;
+			cout<<"		Value:"<<*value <<endl;
+			cout<<"		Size :"<<*value_size<<endl;
 		#endif
 		if (c_resp->value_sz ==0) {
 			cout<< "Read was issued on non-existent key" <<endl;
@@ -438,9 +446,9 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 		return 0;
 	} else {
 		/* ABD algorithm case */
-	#ifdef DEBUG_FLAG
-		cout<< "ABD protocol: Get request"<<endl;
-	#endif
+		#ifdef DEBUG_FLAG
+			cout<< "ABD protocol: Get request"<<endl;
+		#endif
 		/* Send the write_query */
 		request_t *c_req = new request_t;
 		c_req->type = READ_QUERY;
@@ -486,9 +494,9 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			*value[c_req->value_sz] = '\0';
 			*value_size = c_req->value_sz;
 			#ifdef DEBUG_FLAG
-			cout <<"Returning following value in GET operation :" <<endl;
-			cout<<"		Value:"<<*value <<endl;
-			cout<<"		Size :"<<*value_size<<endl;
+				cout <<"Returning following value in GET operation :" <<endl;
+				cout<<"		Value:"<<*value <<endl;
+				cout<<"		Size :"<<*value_size<<endl;
 			#endif
 			delete_request_t(c_req);
 		} else {
@@ -507,10 +515,10 @@ int client_delete(struct Client* c)
 	auto it  = client_list.find(c->id);
 	if(it!=client_list.end()) {
 		int id = c->id;
-	#ifdef DEBUG_FLAG
-		cout<<"Number of clients before deletion" << client_list.size()<<endl;
-		cout<<"Deleting server connecitons"<<endl;
-	#endif
+		#ifdef DEBUG_FLAG
+			cout<<"Number of clients before deletion" << client_list.size()<<endl;
+			cout<<"Deleting server connecitons"<<endl;
+		#endif
 		/* No need to free connection as it will be Freed in distructor of the object */
 		// for (auto it =  (client_list[id])->conn->connections.begin(); it != (client_list[id])->conn->connections.end();it++ ) {
 		// 	cout<<"Deleteing server connection" <<endl;
@@ -519,21 +527,21 @@ int client_delete(struct Client* c)
 
 		delete  (client_list[id])->conn;
 
-	#ifdef DEBUG_FLAG
-		cout<<"Deleting server list"<<endl;
-	#endif
+		#ifdef DEBUG_FLAG
+			cout<<"Deleting server list"<<endl;
+		#endif
 		delete [] (client_list[id])->cl->servers;
 
 
-	#ifdef DEBUG_FLAG
-		cout<<"Deleting Client structure"<<endl;
-	#endif
+		#ifdef DEBUG_FLAG
+			cout<<"Deleting Client structure"<<endl;
+		#endif
 		delete (client_list[id])->cl;
 
 		client_list.erase(id);
-	#ifdef DEBUG_FLAG
-		cout<<"Number of clients after deletion" << client_list.size()<<endl;
-	#endif
+		#ifdef DEBUG_FLAG
+			cout<<"Number of clients after deletion" << client_list.size()<<endl;
+		#endif
 		client_list_mutex.unlock();
 	}
 	return 0;

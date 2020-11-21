@@ -32,7 +32,8 @@
 #include <grpcpp/create_channel.h>
 //#include <grpcpp/security/credentials.h>
 
-#define DEBUG_FLAG 1
+//#define DEBUG_FLAG 0
+
 #define INT_SIZE sizeof(int)
 
 
