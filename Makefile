@@ -17,7 +17,7 @@ obj2 = $(filter-out obj/userprogram.o,  $(obj)) # Object files required for the 
 obj1 = $(filter-out obj/server_driver.o, $(obj)) # Object files for userprogram application. Please note that Client application created by this Makefile will be the one that runs the main function in the userprogram object file
 
 .PHONY: all
-all: system-check obj Client Server
+all: system-check obj Client Server libProject1.a
 
 client : obj Client
 Client: key_store_services.pb.o key_store_services.grpc.pb.o utils.o client_lib.o userprogram_cm_test1.o
@@ -26,6 +26,9 @@ Client: key_store_services.pb.o key_store_services.grpc.pb.o utils.o client_lib.
 server: obj Server
 Server: key_store_services.pb.o key_store_services.grpc.pb.o cm_services.pb.o cm_services.grpc.pb.o utils.o cm_client.o cm_server.o server.o
 	$(CXX) -g -o $@ $^ $(LDFLAGS) # Link object files and create the server application
+
+libProject1.a: key_store_services.pb.o key_store_services.grpc.pb.o utils.o client_lib.o
+	ar rcs libProject1.a client_lib.o
 
 obj:
 	mkdir obj # Create a folder for the object files
@@ -65,35 +68,59 @@ endif
 
 system-check:
 ifneq ($(HAS_VALID_PROTOC),true)
-        @echo " DEPENDENCY ERROR"
-        @echo
-        @echo "You don't have protoc 3.0.0 installed in your path."
-        @echo "Please install Google protocol buffers 3.0.0 and its compiler."
-        @echo "You can find it here:"
-        @echo
-        @echo "   https://github.com/google/protobuf/releases/tag/v3.0.0"
-        @echo
-        @echo "Here is what I get when trying to evaluate your version of protoc:"
-        @echo
-        -$(PROTOC) --version
-        @echo
-        @echo
+	@echo " DEPENDENCY ERROR"
+	@echo
+	@echo "You don't have protoc 3.0.0 installed in your path."
+	@echo "Please install Google protocol buffers 3.0.0 and its compiler."
+	@echo "You can find it here:"
+	@echo
+	@echo "   https://github.com/google/protobuf/releases/tag/v3.0.0"
+	@echo
+	@echo "Here is what I get when trying to evaluate your version of protoc:"
+	@echo
+	-$(PROTOC) --version
+	@echo
+	@echo
 endif
 ifneq ($(HAS_PLUGIN),true)
-        @echo " DEPENDENCY ERROR"
-        @echo
-        @echo "You don't have the grpc c++ protobuf plugin installed in your path."
-        @echo "Please install grpc. You can find it here:"
-        @echo
-        @echo "   https://github.com/grpc/grpc"
-        @echo
-        @echo "Here is what I get when trying to detect if you have the plugin:"
-        @echo
-        -which $(GRPC_CPP_PLUGIN)
-        @echo
-        @echo
+	@echo " DEPENDENCY ERROR"
+	@echo
+	@echo "You don't have the grpc c++ protobuf plugin installed in your path."
+	@echo "Please install grpc. You can find it here:"
+	@echo
+	@echo "   https://github.com/grpc/grpc"
+	@echo
+	@echo "Here is what I get when trying to detect if you have the plugin:"
+	@echo
+	-which $(GRPC_CPP_PLUGIN)
+	@echo
+	@echo
 endif
 ifneq ($(SYSTEM_OK),true)
-        @false
+	@false
 endif
 
+#installing GRPC
+#export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+# it clone -b $(curl -L https://grpc.io/release) https://github.com/grpc/grpc
+# cd grpc
+# git submodule update --init
+# make
+# make install
+
+# cd third_party/protobuf
+# ./autogen.sh
+# ./configure
+# make
+# make check
+# make install
+
+#Method 2
+# git clone -b $(curl -L https://grpc.io/release) https://github.com/grpc/grpc
+# cd grpc
+# git submodule update --init
+# cd grpc/third_party/protobuf
+# sudo make install
+# cd ../../
+# make
+# sudo make install
