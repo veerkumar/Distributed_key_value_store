@@ -8,16 +8,32 @@ using KeyStore::KeyStoreRequest;
 using KeyStore::KeyStoreResponse;
 using KeyStore::KeyStoreService;
 
-typedef struct value_ {
-	tag_t tag;
-	char* key;
-	uint32_t key_sz;
-	char* value;
-	uint32_t value_sz;
-} value_t;
 
-mutex abd_ks_map_mutex;
-map<string,value_t*> abd_ks_map;
 
-mutex cm_ks_map_mutex;
-map<string,value_t*> cm_ks_map;
+
+void
+delete_cm_request_t(cm_message_request_t* cm_req);
+
+
+
+
+
+extern mutex abd_ks_map_mutex;
+extern map<string,value_t*> abd_ks_map;
+
+extern mutex cm_ks_map_mutex;
+extern map<string,value_t*> cm_ks_map;
+
+extern mutex cm_pq_mutex;
+extern priority_queue <cm_message_request_t*, vector<cm_message_request_t*>, vectclk_comparator > cm_message_pq;
+
+extern mutex cm_outque_mutex;
+extern std::queue<cm_message_request_t* > cm_message_outqueue;
+
+extern mutex cm_t_mutex;
+extern int *t;
+extern int serverlist_size;
+
+extern int mynodenumber;
+
+extern cm_server_connections *cm_connection_obj;

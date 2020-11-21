@@ -27,10 +27,12 @@ struct Client* client_instance(const uint32_t id, const char* protocol, const st
 {
 	struct Client* cl  = new Client;
 	cl->id = id;
-	memcpy(&cl->protocol, protocol, sizeof(*protocol));
+	string proto = string(protocol);
+	memcpy(cl->protocol, protocol, proto.length());
+	
 	cl->number_of_servers = number_of_servers;
 	cl->servers = new struct Server_info[number_of_servers];
-	cout<<(sizeof(struct Server_info)*number_of_servers) << " " << number_of_servers <<endl;
+	//cout<<(sizeof(struct Server_info)*number_of_servers) << " " << number_of_servers <<endl;
 	memcpy(cl->servers, servers, sizeof(struct Server_info)*number_of_servers);
 
 	client_wrapper *cl_w = new struct client_wrapper_i;
@@ -81,10 +83,12 @@ make_req_payload (KeyStoreRequest *payload,
 		payload->set_valuesz(0);
 	}
 	// Not needed
-	// if (req->type ==  READ) {
-	// 	payload->set_type(KeyStoreRequest::READ);
-		
-	// }
+	if (req->type ==  READ) {
+	 	payload->set_type(KeyStoreRequest::READ);
+		payload->set_key(req->key,req->key_sz);
+		payload->set_keysz(req->key_sz);
+		payload->set_valuesz(0);
+	}
 }
 
 void 
@@ -111,44 +115,47 @@ extract_response_from_payload(KeyStoreResponse *Response, KeyStoreRequest req, b
 	}
 	if (Response->protocol() == KeyStoreResponse::ABD) {
 		c_response->protocol = ABD;
+		c_response->tag.integer = Response->integer();
+		c_response->tag.client_id = Response->clientid();
 	}
 
-	c_response->tag.integer = Response->integer();
-	c_response->tag.client_id = Response->clientid();
+	
 	if (overide_key) {
-#ifdef DEBUG_FLAG
-		cout<<__func__<<"Response key size= "<<Response->key().size();
-		cout<<__func__<<"Response key received = "<<Response->key();
-#endif
-		c_response->key = new char[Response->key().size()];
-		memcpy(c_response->key, Response->key().c_str(), Response->key().size());
-#ifdef DEBUG_FLAG
-		cout<<__func__<<"Response after mem_cpy = "<<c_response->key;
-#endif
+	#ifdef DEBUG_FLAG
+		cout<<"	"<<__func__<<"Response key size= "<<Response->key().size();
+		cout<<"	"<<__func__<<"Response key received = "<<Response->key();
+	#endif
+		c_response->key = new char[Response->keysz()+1];
+		memset(c_response->key, 0, Response->keysz()+1);
+		memcpy(c_response->key, Response->key().c_str(), Response->keysz());
+	#ifdef DEBUG_FLAG
+		cout<<"	"<<__func__<<"Response after mem_cpy = "<<c_response->key;
+	#endif
 	} else {
 		#ifdef DEBUG_FLAG
-		cout<<__func__<<" not overridding \n \tResponse key size= "<<req.key().size()<<endl;
-		cout<<__func__<<"\tResponse key received = "<<req.key()<<endl;
-#endif
-		c_response->key = new char[req.key().size()];
-		memcpy(c_response->key, req.key().c_str(), req.key().size());
-#ifdef DEBUG_FLAG
-		cout<<__func__<<"\tResponse after mem_cpy = "<<c_response->key<<endl;
-#endif
+			cout<<"	"<<__func__<<"\tResponse key received = "<<req.key()<<endl;
+		#endif
+		c_response->key = new char[req.keysz()+1];
+		memset(c_response->key, 0, req.keysz()+1);
+		memcpy(c_response->key, req.key().c_str(), req.keysz());
+		#ifdef DEBUG_FLAG
+			cout<<"	"<<__func__<<"\tResponse after mem_cpy = "<<c_response->key<<endl;
+		#endif
 	}
 	c_response->key_sz = Response->keysz();
 	if(Response->valuesz()) {
-#ifdef DEBUG_FLAG
-		cout<<__func__<<"Response value size= "<<Response->value().size()<<endl;
-		cout<<__func__<<"Response value received = "<<Response->value()<<endl;
-#endif
-		c_response->value = new char[Response->value().size()];
-		memcpy(c_response->value, Response->value().c_str(), Response->value().size());
-#ifdef DEBUG_FLAG
-		cout<<__func__<<"Response value after mem_cpy = "<<c_response->value<<endl;
-#endif
+		#ifdef DEBUG_FLAG
+			cout<<"	"<<__func__<<"Response value size= "<<Response->value().size()<<endl;
+			cout<<"	"<<__func__<<"Response value received = "<<Response->value()<<endl;
+		#endif
+		c_response->value = new char[Response->valuesz()+1];
+		memset(c_response->value, 0, Response->valuesz()+1);
+		memcpy(c_response->value, Response->value().c_str(), Response->valuesz());
+		#ifdef DEBUG_FLAG
+				cout<<__func__<<"Response value after mem_cpy = "<<c_response->value<<endl;
+		#endif
 	} else {
-		cout<< "Value from server is 0"<<endl;
+		cout<<"	Value from server is Invalid/Not_applicable"<<endl;
 	}
 	c_response->value_sz = Response->valuesz();
 	return c_response;
@@ -212,7 +219,6 @@ void send_message_to_all_server(promise<vector<response_t*>>& prom, client_wrapp
 		i++;
 	}
 	cout << "Majority" <<majority<<endl;
-	int count = 0;
 	while(1) {
 			for (auto &future:vec_fut){
             	span = std::chrono::system_clock::now() + std::chrono::milliseconds(10);
@@ -265,18 +271,78 @@ response_t* find_majority_tag (vector<response_t*> &vec_c_resp) {
 	}
 	return max_resp;
 }
+/* Agnostic to type of message, return the response */
+void send_message_to_one_server(promise<response_t*>& prom, client_wrapper *cw, request_t *c_req) {
+	KeyStoreRequest ReqPayload;
+	int number_of_servers =  cw->conn->connections.size();
+	
+	std::chrono::system_clock::time_point span ;
+	promise<response_t*> pm;
+	future<response_t*> fu;
+	response_t* c_resp ;
+	
+	vector<future<void>> vec_temp_fut;	 // Stores async return future, we dont use it but asyn 
+										 // become sync if we dont store it.
+	make_req_payload(&ReqPayload, c_req);
+	print_request(c_req);
+	uint32_t i = 0;
+	for (auto it = cw->conn->connections.begin(); it!=cw->conn->connections.end(); it++) {
+		if( c_req->tag.client_id %number_of_servers == i) {
+		#ifdef DEBUG_FLAG
+			cout<<"CM: Sending to server = "<< c_req->tag.client_id%number_of_servers<<endl;
+		#endif
+		pm = promise<response_t*>();
+		fu = pm.get_future();
+		vec_temp_fut.emplace_back(std::async(std::launch::async, send_to_server_handler, 
+								 it->second, std::move(pm), &ReqPayload));
+		}
+		i++;
+	}
+
+    if (fu.valid()) {
+        c_resp = fu.get();
+    } 
+    
+    cout<<"CM: Got the Response returning now"<<endl;
+    prom.set_value(c_resp);    
+	// caller will clean the "vec_resp"
+	// vec_prom, vec_fut and vec_temp_fut are local variable, will be freed
+}
 
 int put(const struct Client* c, const char* key, uint32_t key_size, 
 	const char* value, uint32_t value_size){
+	
 	vector<response_t*> vec_c_resp ;
 	response_t *max_resp = NULL;
+	cout<<"key_size" <<key_size<<endl;
 
 
 	/* Based on the client ID, fetch the server connection and call the function */
 	if (string(c->protocol) == "CM") {
-	#ifdef DEBUG_FLAG
-		cout<< "CM protocol: Put request"<<endl;
-	#endif
+		response_t *c_resp = NULL;
+		#ifdef DEBUG_FLAG
+			cout<< "CM protocol: Put request"<<endl;
+		#endif
+		request_t *c_req = new request_t;
+		c_req->type = WRITE;
+		c_req->protocol = CM;
+		c_req->tag.integer = 0; // Since query will fetch the integer
+		c_req->tag.client_id = c->id;
+		c_req->key = new char[key_size+1];
+		memcpy(c_req->key, key, key_size);
+		c_req->key_sz = key_size;
+		c_req->value = new char[value_size+1];	
+		memcpy(c_req->value, value, value_size);
+		c_req->value_sz = value_size;
+
+		promise<response_t*> pm =  promise<response_t*>();
+    	future <response_t*> fu = pm.get_future();
+		thread t1(send_message_to_one_server, ref(pm), client_list[c->id], c_req);
+		t1.detach();
+		c_resp = fu.get();
+		delete_response_t(c_resp); 
+		delete_request_t (c_req); 
+		return 0;
 
 	} else {
 		/* ABD algorithm case */
@@ -289,7 +355,8 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 		c_req->protocol = ABD;
 		c_req->tag.integer = 0; // Since query will fetch the integer
 		c_req->tag.client_id = c->id;
-		c_req->key = new char[key_size];
+		c_req->key = new char[key_size+1];
+		memset(c_req->key,0,key_size+1);
 		memcpy(c_req->key, key, key_size);
 		c_req->key_sz = key_size;
 		c_req->value_sz = 0;
@@ -302,12 +369,11 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 
 		max_resp = find_majority_tag(vec_c_resp); 
 		
-		
-
 		/*Send the write request*/
 		c_req->type = WRITE;
 		c_req->tag.integer = max_resp->tag.integer + 1;
-		c_req->value = new char[value_size];	
+		c_req->value = new char[value_size+1];	
+		memset(c_req->value, 0,value_size+1);
 		memcpy(c_req->value, value, value_size);
 		c_req->value_sz = value_size;
 
@@ -332,14 +398,44 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 
 	vector<response_t*> vec_c_resp;
 	response_t *max_resp = NULL;
+	cout<<"key_size" <<key_size<<endl;
 
 
 	/* Based on the client ID, fetch the server connection and call the function */
 	if (string(c->protocol) == "CM") {
 		#ifdef DEBUG_FLAG
-		cout<< "CM protocol: Put request"<<endl;
+		response_t *c_resp = NULL;
+		cout<< "CM protocol: Get request"<<endl;
 	#endif
+		request_t *c_req = new request_t;
+		c_req->type = READ;
+		c_req->protocol = CM;
+		c_req->tag.integer = 0; // Since query will fetch the integer
+		c_req->tag.client_id = c->id;
+		c_req->key = new char[key_size+1];
+		memcpy(c_req->key, key, key_size);
+		c_req->key_sz = key_size;
+		c_req->value_sz = 0;
 
+		promise<response_t*> pm =  promise<response_t*>();
+    	future <response_t*> fu = pm.get_future();
+		thread t1(send_message_to_one_server, ref(pm), client_list[c->id], c_req);
+		t1.detach();
+		c_resp = fu.get();
+		*value = new char[c_resp->value_sz+1];
+		memcpy(*value, c_resp->value, c_resp->value_sz);
+		(*value)[c_resp->value_sz] = '\0';
+		*value_size = c_resp->value_sz;
+		#ifdef DEBUG_FLAG
+		cout <<"Returning following value in CM GET operation :" <<endl;
+		cout<<"		Value:"<<*value <<endl;
+		cout<<"		Size :"<<*value_size<<endl;
+		#endif
+		if (c_resp->value_sz ==0) {
+			cout<< "Read was issued on non-existent key" <<endl;
+			return -1;
+		}
+		return 0;
 	} else {
 		/* ABD algorithm case */
 	#ifdef DEBUG_FLAG
@@ -351,7 +447,8 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 		c_req->protocol = ABD;
 		c_req->tag.integer = 0; // Since query will fetch the integer
 		c_req->tag.client_id = c->id;
-		c_req->key = new char[key_size];
+		c_req->key = new char[key_size+1];
+		memset(c_req->key, 0, key_size+1);
 		memcpy(c_req->key, key, key_size);
 		c_req->key_sz = key_size;
 		c_req->value_sz = 0;
@@ -369,7 +466,8 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			c_req->type = WRITE;
 			c_req->tag.integer = max_resp->tag.integer;
 			c_req->tag.client_id = max_resp->tag.client_id;	
-			c_req->value = new char[max_resp->value_sz];
+			c_req->value = new char[max_resp->value_sz+1];
+			memset(c_req->value,0,max_resp->value_sz+1);
 			memcpy(c_req->value, max_resp->value, max_resp->value_sz);
 			c_req->value_sz = max_resp->value_sz;
 
@@ -383,8 +481,9 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			max_resp = find_majority_tag(vec_c_resp); 
 			delete_response_t(max_resp); 
 			/* fill the result */
-			*value = new char[c_req->value_sz];
+			*value = new char[c_req->value_sz+1];
 			memcpy(*value, c_req->value, c_req->value_sz);
+			*value[c_req->value_sz] = '\0';
 			*value_size = c_req->value_sz;
 			#ifdef DEBUG_FLAG
 			cout <<"Returning following value in GET operation :" <<endl;

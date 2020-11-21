@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+
+package CMKeyStore;
+
+service CMService {
+  rpc CMRequestHandler (CMRequest) returns (CMResponse) {}
+}
+
+/* This single message structure will be used for sending
+*/
+
+message CMRequest {
+  uint32 nodenum = 1;
+  bytes key = 2;
+  uint32 keySz = 3;
+  bytes  value = 4;         //This will be filled while writing value to the server
+  uint32 valueSz = 5;
+  bytes vecclk = 6;
+  uint32 vecclksz = 7;
+}
+
+/* This single message defination will be used for all type of message
+*/
+message  CMResponse {
+  enum ReturnCode {
+  ACK   = 0;
+  ERROR = 1;
+  OK    = 2;
+  }
+  ReturnCode code = 1;
+}

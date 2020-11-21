@@ -20,11 +20,11 @@ obj1 = $(filter-out obj/server_driver.o, $(obj)) # Object files for userprogram 
 all: system-check obj Client Server
 
 client : obj Client
-Client: key_store_services.pb.o key_store_services.grpc.pb.o utils.o client_lib.o userprogram.o
+Client: key_store_services.pb.o key_store_services.grpc.pb.o utils.o client_lib.o userprogram_cm_test1.o
 	$(CXX) -g -o $@ $^ $(LDFLAGS) # Link object files and create the client application
 
 server: obj Server
-Server: key_store_services.pb.o key_store_services.grpc.pb.o utils.o server.o
+Server: key_store_services.pb.o key_store_services.grpc.pb.o cm_services.pb.o cm_services.grpc.pb.o utils.o cm_client.o cm_server.o server.o
 	$(CXX) -g -o $@ $^ $(LDFLAGS) # Link object files and create the server application
 
 obj:
@@ -44,7 +44,7 @@ $(obj): obj/%.o: %.cpp
 
 .PHONY: clean
 clean:
-	rm -rf obj Client Server
+	rm -rf obj Client Server 
 
 PROTOC_CMD = which $(PROTOC)
 PROTOC_CHECK_CMD = $(PROTOC) --version | grep -q libprotoc.3

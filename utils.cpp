@@ -67,6 +67,21 @@ get_c_return_code(KeyStoreResponse::ReturnCode type) {
 	return OK;
 }
 
+string
+get_c_return_code_string(KeyStoreResponse::ReturnCode type) {
+	switch (type) {
+		case KeyStoreResponse::ACK:
+			return "ACK";
+		case KeyStoreResponse::ERROR:
+			return "ERROR";
+		case KeyStoreResponse::OK:
+			return "OK";
+		default:
+			cout<<"get_ctype: wrong return code";	
+	}
+	return "OK";
+}
+
 void
 print_grpc_return_code(KeyStoreResponse::ReturnCode type) {
 	switch (type) {

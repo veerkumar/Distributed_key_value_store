@@ -24,6 +24,7 @@
 #include <utility>
 
 
+
 #include <grpc/grpc.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/channel.h>
@@ -32,6 +33,7 @@
 //#include <grpcpp/security/credentials.h>
 
 #define DEBUG_FLAG 1
+#define INT_SIZE sizeof(int)
 
 
 using namespace std;
@@ -77,14 +79,32 @@ typedef struct  response_ {
   uint32_t value_sz;
 } response_t;
 
-// typedef struct register_service_request_ {
-// 	service_type type;
-// 	string ip_port;
-// } register_service_request_t;
+typedef struct value_ {
+  tag_t tag;
+  char* key;
+  uint32_t key_sz;
+  char* value;
+  uint32_t value_sz;
+} value_t;
 
-// typedef struct response_ {
-// 	return_code code;
-// } register_service_response_t;
+
+typedef struct cm_message_request_ {
+  uint32_t nodenum;
+  char* key;
+  uint32_t key_sz;
+  char* value;
+  uint32_t value_sz;
+  int *vec_clk;
+  uint32_t vecclk_sz;
+} cm_message_request_t;
+
+typedef struct cm_message_response_ {
+  return_code code;
+} cm_message_response_t;
+
+
+
+
 
 extern int get_random_number ();
 
