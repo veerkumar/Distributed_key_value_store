@@ -23,6 +23,34 @@ int mynodenumber;
 
 cm_server_connections *cm_connection_obj;
 
+string
+get_ipaddr() {
+	string ipAddress;
+	struct ifaddrs *interfaces = NULL;
+	struct ifaddrs *temp_addr = NULL;
+	int success = 0;
+	// retrieve the current interfaces - returns 0 on success
+	success = getifaddrs(&interfaces);
+	if (success == 0) {
+		// Loop through linked list of interfaces
+		temp_addr = interfaces;
+		while(temp_addr != NULL) {
+			if(temp_addr->ifa_addr->sa_family == AF_INET) {
+				if(strcmp(temp_addr->ifa_name, INTERFACE)==0){
+					ipAddress=inet_ntoa(((struct sockaddr_in*)temp_addr->ifa_addr)->sin_addr);
+#ifdef DEBUG_FLAG				
+					cout<<"\n IPaddress"<<ipAddress;
+#endif
+				}
+			}
+			temp_addr = temp_addr->ifa_next;
+		}
+	}
+	// Free memory
+	freeifaddrs(interfaces);
+	return ipAddress+":";
+}
+
 
 int get_random_number () {
 	unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -492,7 +520,7 @@ int main(int argc, char** argv) {
 		}
 		
 		value_t *temp_value_t;
-		server_address =  "127.0.0.1:" + string(argv[1]);
+		server_address =  get_ipaddr() + string(argv[1]);
 
 		/* Insert default stringin mapt*/
 		temp_value_t = new value_t;
@@ -509,7 +537,7 @@ int main(int argc, char** argv) {
 		cout << "Please pass 4 arguments for CM, \n portnumber, Protocol(ABD/CM) mylocation(location of this server ip in server_info.txt, starting from 0)"<<endl;
 		return -1;
 		}
-		server_address =  "127.0.0.1:" + string(argv[1]);
+		server_address =  get_ipaddr() + string(argv[1]);
 		mylocation = stoi(string(argv[3]));
 		#ifdef DEBUG_FLAG
 		cout<<"mylocation:" <<mylocation<<endl;

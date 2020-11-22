@@ -4,6 +4,7 @@
  */
 
 #include "client.h"
+#include "commons.h"
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -14,18 +15,17 @@ using namespace std;
 typedef unsigned int uint;
 
 //#define NUMBER_OF_CLIENTS 	1
-#define SIZE_OF_VALUE 		3
 
-#define ABD_NUMBER_OF_CLIENTS 10
-
-#define CM_NUMBER_OF_CLIENTS 100
 
 int num_secs = 10;
 
 
 // Define your server information here
+// static struct Server_info servers[] = {
+// 		{"127.0.0.1", 10000},{"127.0.0.1", 10001}, {"127.0.0.1", 10002}, {"127.0.0.1", 10003}, {"127.0.0.1", 10004}};
+
 static struct Server_info servers[] = {
-		{"127.0.0.1", 10000},{"127.0.0.1", 10001}, {"127.0.0.1", 10002}, {"127.0.0.1", 10003}, {"127.0.0.1", 10004}};
+		{"35.237.169.199", 10000},{"35.237.169.199", 10001}};
 
 
 // static struct Server_info servers[] = {
@@ -158,7 +158,7 @@ void abd_latency_executer(int read_write_ratio) {
 				//cout<<counter<<" ";
 		    }
 		    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		    cout<<"\ntime elapsed"<<std::chrono::duration_cast<std::chrono::milliseconds> (end - begin).count();
+		   // cout<<"\ntime elapsed"<<std::chrono::duration_cast<std::chrono::milliseconds> (end - begin).count();
 		}
 	    for(int i = 0; i < num_secs*ABD_NUMBER_OF_CLIENTS; i++){
 	    	threads[i]->join();
@@ -266,7 +266,7 @@ int main(int argc, char* argv[]){
 		cm_latency_executer(9); // 90%
 	}
 	else{
-		
+
 		fprintf(stderr, "%s%s%s\n", "Error\n"
 		"Usage: ", argv[0], "[ABD/CM]\n\n"
 		"Please note to run the servers first\n"

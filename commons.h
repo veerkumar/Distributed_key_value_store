@@ -32,7 +32,15 @@
 #include <grpcpp/create_channel.h>
 //#include <grpcpp/security/credentials.h>
 
-//#define DEBUG_FLAG 0
+#define DEBUG_FLAG 0
+
+#define INTERFACE "ens33"
+
+#define SIZE_OF_VALUE     3
+
+#define ABD_NUMBER_OF_CLIENTS 10
+
+#define CM_NUMBER_OF_CLIENTS 10
 
 #define INT_SIZE sizeof(int)
 

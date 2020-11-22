@@ -80,7 +80,7 @@ int main(int argc, char* argv[]){
 	if(std::string(argv[1]) == "ABD"){
 
 		// Create ABD clients
-		
+		int NUMBER_OF_CLIENTS = 10;
 
 		struct Client* abd_clt[NUMBER_OF_CLIENTS];
 		for(uint i = 0; i < NUMBER_OF_CLIENTS; i++){
@@ -94,7 +94,9 @@ int main(int argc, char* argv[]){
 
 		// Do write operations concurrently
 		std::vector<std::thread*> threads;
-		
+		char latency_type[100];
+		uint32_t value_sizes[100];
+		int counter =0;
 		srand(time(0));
 		for(uint i = 0; i < NUMBER_OF_CLIENTS; i++){
 			
