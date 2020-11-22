@@ -40,7 +40,7 @@ static struct Server_info servers[] = {
 static char key[] = "123456"; // We only have one key in this userprogram
 
 namespace Thread_helper{
-	void _put(const struct Client* c, const char* key, uint32_t key_size, const char* value, uint32_t value_size, uint32_t *latency){
+	void _put(const struct Client* c, const char* key, uint32_t key_size, const char* value, uint32_t value_size, uint64_t *latency){
 
 		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 		int status = put(c, key, key_size, value, value_size);
@@ -56,7 +56,7 @@ namespace Thread_helper{
 		return;
 	}
 
-	void _get(const struct Client* c, const char* key, uint32_t key_size, char** value, uint32_t *value_size, uint32_t *latency){
+	void _get(const struct Client* c, const char* key, uint32_t key_size, char** value, uint32_t *value_size, uint64_t *latency){
 
 		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 		int status = get(c, key, key_size, value, value_size);
@@ -73,20 +73,33 @@ namespace Thread_helper{
 	}
 }
 
-void calculate_read_and_write_latency(char * latency_type, uint *latency_value){
-	int write_count = 0;
-	int read_count = 0;
-	int read_sum = 0;
-	int write_sum = 0;
+void calculate_read_and_write_latency(char * latency_type, uint64_t *latency_value, bool abd){
+	uint64_t write_count = 0;
+	uint64_t read_count = 0;
+	uint64_t read_sum = 0;
+	uint64_t write_sum = 0;
 	cout<<"\n";
-	for (int i = 0; i<num_secs*ABD_NUMBER_OF_CLIENTS;i++) {
-		if(latency_type[i] == 'W') {
-			write_count++;
-			//cout<<write_count<<" ";
-			write_sum += latency_value[i];
-		} else {
-			read_count++;
-			read_sum += latency_value[i];
+	if(abd) {
+		for (int i = 0; i< num_secs*ABD_NUMBER_OF_CLIENTS;i++) {
+			if(latency_type[i] == 'W') {
+				write_count++;
+				//cout<<write_count<<" ";
+				write_sum += latency_value[i];
+			} else {
+				read_count++;
+				read_sum += latency_value[i];
+			}
+		}
+	} else {
+		for (int i = 0; i< CM_NUMBER_OF_CLIENTS;i++) {
+			if(latency_type[i] == 'W') {
+				write_count++;
+				//cout<<write_count<<" ";
+				write_sum += latency_value[i];
+			} else {
+				read_count++;
+				read_sum += latency_value[i];
+			}
 		}
 	}
 	cout<<"	read_count	:"<<read_count<<endl;
@@ -113,7 +126,7 @@ void abd_latency_executer(int read_write_ratio) {
 		
 		struct Client* abd_clt[ABD_NUMBER_OF_CLIENTS];
 		char latency_type[num_secs*ABD_NUMBER_OF_CLIENTS];
-		uint32_t latency_value[num_secs*ABD_NUMBER_OF_CLIENTS]={0};
+		uint64_t latency_value[num_secs*ABD_NUMBER_OF_CLIENTS]={0};
 		int counter = 0;
 		cout<<"Read_write_ratio: "<< read_write_ratio*10 <<endl;
 		for(uint i = 0; i < ABD_NUMBER_OF_CLIENTS; i++){
@@ -130,7 +143,7 @@ void abd_latency_executer(int read_write_ratio) {
 		uint32_t value_sizes[num_secs*ABD_NUMBER_OF_CLIENTS];
 
 		for (int j = 0; j< num_secs;j++) {
-			std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+			//std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 			for(int i = 0; i < ABD_NUMBER_OF_CLIENTS; i++) {
 				
 				// build a random value
@@ -153,11 +166,11 @@ void abd_latency_executer(int read_write_ratio) {
 					 threads.push_back(new std::thread(Thread_helper::_get, abd_clt[i], key, 
 					 	sizeof(key), &values[counter], &value_sizes[counter], &latency_value[counter]));
 				}
-				//std::this_thread::sleep_for (std::chrono::milliseconds(10));
+				std::this_thread::sleep_for (std::chrono::milliseconds(98));
 				counter++;
 				//cout<<counter<<" ";
 		    }
-		    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		   // std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 		   // cout<<"\ntime elapsed"<<std::chrono::duration_cast<std::chrono::milliseconds> (end - begin).count();
 		}
 	    for(int i = 0; i < num_secs*ABD_NUMBER_OF_CLIENTS; i++){
@@ -165,7 +178,7 @@ void abd_latency_executer(int read_write_ratio) {
 	    }
 	    threads.clear();
 
-	    calculate_read_and_write_latency(latency_type, latency_value);
+	    calculate_read_and_write_latency(latency_type, latency_value,1);
 	    for(int i = 0; i < ABD_NUMBER_OF_CLIENTS; i++){
 			if(client_delete(abd_clt[i]) == -1){
 				fprintf(stderr, "%s\n", "Error occured in deleting clients");
@@ -178,7 +191,7 @@ void cm_latency_executer(int read_write_ratio){
 
 		struct Client* cm_clt[CM_NUMBER_OF_CLIENTS];
 		char latency_type[CM_NUMBER_OF_CLIENTS];
-		uint32_t latency_value[CM_NUMBER_OF_CLIENTS]={0};
+		uint64_t latency_value[CM_NUMBER_OF_CLIENTS]={0};
 		int counter = 0;
 		cout<<"Read_write_ratio: "<< read_write_ratio*10 <<endl;
 		for(uint i = 0; i < CM_NUMBER_OF_CLIENTS; i++){
@@ -195,7 +208,7 @@ void cm_latency_executer(int read_write_ratio){
 		uint32_t value_sizes[CM_NUMBER_OF_CLIENTS];
 
 		for (int j = 0; j< int(CM_NUMBER_OF_CLIENTS/10);j++) {
-			std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+			//std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 			for(int i = 0; i < 10; i++) {
 				
 				// build a random value
@@ -222,15 +235,15 @@ void cm_latency_executer(int read_write_ratio){
 				counter++;
 				//cout<<counter<<" ";
 		    }
-		    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		    cout<<"\ntime elapsed"<<std::chrono::duration_cast<std::chrono::milliseconds> (end - begin).count();
+		    //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		    //cout<<"\ntime elapsed"<<std::chrono::duration_cast<std::chrono::milliseconds> (end - begin).count();
 		}
 	    for(int i = 0; i < CM_NUMBER_OF_CLIENTS; i++){
 	    	threads[i]->join();
 	    }
 	    threads.clear();
 
-	    calculate_read_and_write_latency(latency_type, latency_value);
+	    calculate_read_and_write_latency(latency_type, latency_value, 0);
 	    for(int i = 0; i < CM_NUMBER_OF_CLIENTS; i++){
 			if(client_delete(cm_clt[i]) == -1){
 				fprintf(stderr, "%s\n", "Error occured in deleting clients");
@@ -262,8 +275,8 @@ int main(int argc, char* argv[]){
 	else if(std::string(argv[1]) == "CM"){
 		
 		cm_latency_executer(1); // 10%
-		cm_latency_executer(5); // 50%
-		cm_latency_executer(9); // 90%
+		//cm_latency_executer(5); // 50%
+		//cm_latency_executer(9); // 90%
 	}
 	else{
 

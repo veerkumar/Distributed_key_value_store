@@ -2,3 +2,4 @@
 *.pb.*
 obj/
 *.o
+Client*
