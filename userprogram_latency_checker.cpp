@@ -24,16 +24,12 @@ int num_secs = 10;
 // static struct Server_info servers[] = {
 // 		{"127.0.0.1", 10000},{"127.0.0.1", 10001}, {"127.0.0.1", 10002}, {"127.0.0.1", 10003}, {"127.0.0.1", 10004}};
 
+// static struct Server_info servers[] = {
+// 		{"34.75.64.24", 10000},{"34.122.77.87", 10001},{"34.76.84.19",10002},{"104.155.208.169",10003},{"35.228.78.135",10004}};
+
 static struct Server_info servers[] = {
-		{"35.237.169.199", 10000},{"35.237.169.199", 10001}};
+		{"34.75.64.24", 10000},{"34.122.77.87", 10001},{"34.76.84.19",10002}};
 
-
-// static struct Server_info servers[] = {
-// 		{"35.192.70.40", 10000}};
-
-
-// static struct Server_info servers[] = {
-// 		{"34.122.77.87", 10000},{"34.122.77.87", 10001}, {"34.122.77.87", 10002}};
 
 
 
@@ -78,7 +74,6 @@ void calculate_read_and_write_latency(char * latency_type, uint64_t *latency_val
 	uint64_t read_count = 0;
 	uint64_t read_sum = 0;
 	uint64_t write_sum = 0;
-	cout<<"\n";
 	if(abd) {
 		for (int i = 0; i< num_secs*ABD_NUMBER_OF_CLIENTS;i++) {
 			if(latency_type[i] == 'W') {
@@ -103,9 +98,9 @@ void calculate_read_and_write_latency(char * latency_type, uint64_t *latency_val
 		}
 	}
 	cout<<"	read_count	:"<<read_count<<endl;
-	cout<<"read_sum :"<<read_sum<<endl;
+	//cout<<"read_sum :"<<read_sum<<endl;
 	cout<<"	write_count	:"<<write_count<<endl;
-	cout<<"write_sum"<<write_sum<<endl;
+	//cout<<"write_sum"<<write_sum<<endl;
 	
 	cout<<"	Get latency 	:";
 	if(read_count==0) {
@@ -119,7 +114,7 @@ void calculate_read_and_write_latency(char * latency_type, uint64_t *latency_val
 	} else { 
 		cout<< write_sum/write_count<<"ms"<<endl;
 	}
-
+	cout<<"\n";
 }
 // if read_right_ratio is 10% then value is 1
 void abd_latency_executer(int read_write_ratio) {
@@ -275,8 +270,8 @@ int main(int argc, char* argv[]){
 	else if(std::string(argv[1]) == "CM"){
 		
 		cm_latency_executer(1); // 10%
-		//cm_latency_executer(5); // 50%
-		//cm_latency_executer(9); // 90%
+		cm_latency_executer(5); // 50%
+		cm_latency_executer(9); // 90%
 	}
 	else{
 
