@@ -102,25 +102,7 @@ endif
 
 #installing GRPC
 #export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
-# it clone -b $(curl -L https://grpc.io/release) https://github.com/grpc/grpc
-# cd grpc
-# git submodule update --init
-# make
-# make install
-
-# cd third_party/protobuf
-# ./autogen.sh
-# ./configure
-# make
-# make check
-# make install
-
-#Method 2
-#  git clone -b $(curl -L https://grpc.io/release) https://github.com/grpc/grpc
-# cd grpc
-# git submodule update --init
-# cd grpc/third_party/protobuf
-# sudo make install
-# cd ../../
-# make
-# sudo make install
+# sudo apt install -y cmake build-essential autoconf libtool pkg-config clang libssl-dev git
+# git clone --recurse-submodules -b v1.33.2 https://github.com/grpc/grpc
+# execute full https://github.com/grpc/grpc/blob/master/test/distrib/cpp/run_distrib_test_cmake.sh
+# 
