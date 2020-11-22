@@ -265,7 +265,7 @@ class key_store_service_impl: public KeyStoreService::Service {
 					 	 }
 
 					 } else {
-					 	cout << "Ignoring this value, as KeyStore has more latest value" << endl;
+					 	cout << "Ignoring this Interger value :"<<request->integer()<<", as KeyStore has more latest value:"<< temp_value_t->tag.integer<< endl;
 					 }
 				} else {
 					#ifdef DEBUG_FLAG
@@ -379,8 +379,9 @@ void cm_internal_processing_thread (){
 
 	#ifdef DEBUG_FLAG
 	cout<<"cm_internal_processing_thread started"<<endl;
-	#endif
 	int count = 0;
+	#endif
+	
 	while (1) {
 		if(!cm_message_pq.empty()) {
 			#ifdef DEBUG_FLAGD
@@ -453,11 +454,11 @@ void cm_internal_processing_thread (){
 		//if(cm_message_pq.empty()) {
 		if(count >1000) {
 			cout<<"Size of cm_ks_map"<<cm_ks_map.size()<<endl;
-			for(auto it  =cm_ks_map.begin(); it!= cm_ks_map.end();it++){
-				cout<<"Key:"<<it->first<<" Size:"<<it->first.length()<<endl;
-				cout<<"Key_in_value_t:"<<(it->second)->key<<" Size:"<<(it->second)->key_sz<<endl;
-				cout<<"Key_in_value_t:"<<(it->second)->value<<" Size:"<<(it->second)->value_sz<<endl;
-			}
+			 for(auto it  =cm_ks_map.begin(); it!= cm_ks_map.end();it++){
+			// 	cout<<"Key:"<<it->first<<" Size:"<<it->first.length()<<endl;
+			 	cout<<"Key_in_value_t:"<<(it->second)->key<<" Size:"<<(it->second)->key_sz<<endl;
+			 	cout<<"Key_in_value_t:"<<(it->second)->value<<" Size:"<<(it->second)->value_sz<<endl;
+			 }
 			cout<<"My vectore clock: ";
 			for(auto it  =0; it!= serverlist_size ;it++){
 				cout<<t[it]<<" ";
@@ -477,14 +478,18 @@ int main(int argc, char** argv) {
 	
 	string server_address;
 	int mylocation = 0;
-	if ( argc != 4){
-		cout << "Please pass 4 arguments, \n portnumber, Protocol(ABD/CM) mylocation(location of this server ip in server_info.txt, starting from 0)"<<endl;
+	if ( argc < 2){
+		cout << "Please pass 4 arguments for CM and 3 for ABD, \n For ABD: portnumber, Protocol(ABD/CM) \n For CM: portnumber, Protocol(ABD/CM) mylocation(location of this server ip in server_info.txt, starting from 0)"<<endl;
 		return -1;
 	}
 
 		
 	if(std::string(argv[2]) == "ABD")
 	{
+		if ( argc !=3){
+		cout << "Please pass 3 arguments for ABD, \n portnumber, Protocol(ABD/CM)"<<endl;
+		return -1;
+		}
 		
 		value_t *temp_value_t;
 		server_address =  "127.0.0.1:" + string(argv[1]);
@@ -500,6 +505,10 @@ int main(int argc, char** argv) {
 		abd_ks_map["00000"] = temp_value_t;
 
 	} else {
+		if ( argc !=4){
+		cout << "Please pass 4 arguments for CM, \n portnumber, Protocol(ABD/CM) mylocation(location of this server ip in server_info.txt, starting from 0)"<<endl;
+		return -1;
+		}
 		server_address =  "127.0.0.1:" + string(argv[1]);
 		mylocation = stoi(string(argv[3]));
 		#ifdef DEBUG_FLAG

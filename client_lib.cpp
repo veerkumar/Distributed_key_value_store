@@ -155,7 +155,9 @@ extract_response_from_payload(KeyStoreResponse *Response, KeyStoreRequest req, b
 				cout<<__func__<<"Response value after mem_cpy = "<<c_response->value<<endl;
 		#endif
 	} else {
+		#ifdef DEBUG_FLAG
 		cout<<"	Value from server is Invalid/Not_applicable"<<endl;
+		#endif
 	}
 	c_response->value_sz = Response->valuesz();
 	return c_response;
@@ -177,11 +179,10 @@ send_to_server_handler(key_store_client* connection_stub,
 		if (status.ok()) {
 				c_response = extract_response_from_payload(&Response, *req, 0);
 			#ifdef DEBUG_FLAG
-						std::cout << "Got the response from server"<<endl;
-						cout<<"Promise address" <<&keyStoreResponsePromise<<endl;
+						std::cout << "Got the response from server, returning now"<<endl;
 			#endif
 				keyStoreResponsePromise.set_value(c_response);
-				std::cout << "Wrote back"<<endl;
+				
 			} else {
 				std::cout << status.error_code() << ": " << status.error_message()
 					<< std::endl;
@@ -289,7 +290,9 @@ void send_message_to_one_server(promise<response_t*>& prom, client_wrapper *cw, 
 	vector<future<void>> vec_temp_fut;	 // Stores async return future, we dont use it but asyn 
 										 // become sync if we dont store it.
 	make_req_payload(&ReqPayload, c_req);
-	print_request(c_req);
+	#ifdef DEBUG_FLAG
+		print_request(c_req);
+	#endif
 	uint32_t i = 0;
 	for (auto it = cw->conn->connections.begin(); it!=cw->conn->connections.end(); it++) {
 		if( c_req->tag.client_id %number_of_servers == i) {
@@ -337,9 +340,11 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 		c_req->tag.integer = 0; // Since query will fetch the integer
 		c_req->tag.client_id = c->id;
 		c_req->key = new char[key_size+1];
+		memset(c_req->key, 0, key_size+1);
 		memcpy(c_req->key, key, key_size);
 		c_req->key_sz = key_size;
 		c_req->value = new char[value_size+1];	
+		memset(c_req->value, 0, value_size+1);
 		memcpy(c_req->value, value, value_size);
 		c_req->value_sz = value_size;
 
@@ -421,6 +426,7 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 		c_req->tag.integer = 0; // Since query will fetch the integer
 		c_req->tag.client_id = c->id;
 		c_req->key = new char[key_size+1];
+		memset(c_req->key, 0, key_size+1);
 		memcpy(c_req->key, key, key_size);
 		c_req->key_sz = key_size;
 		c_req->value_sz = 0;
@@ -439,9 +445,12 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			cout<<"		Value:"<<*value <<endl;
 			cout<<"		Size :"<<*value_size<<endl;
 		#endif
-		if (c_resp->value_sz ==0) {
+		if (c_resp->value_sz == 0) {
+			*value = new char[1];
+			memset(*value, 0, 1);
+			*value_size = 0;
 			cout<< "Read was issued on non-existent key" <<endl;
-			return -1;
+			return 0;
 		}
 		return 0;
 	} else {
@@ -491,7 +500,7 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			/* fill the result */
 			*value = new char[c_req->value_sz+1];
 			memcpy(*value, c_req->value, c_req->value_sz);
-			*value[c_req->value_sz] = '\0';
+			(*value)[c_req->value_sz] = '\0';
 			*value_size = c_req->value_sz;
 			#ifdef DEBUG_FLAG
 				cout <<"Returning following value in GET operation :" <<endl;
@@ -500,8 +509,11 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			#endif
 			delete_request_t(c_req);
 		} else {
+			*value = new char[1];
+			memset(*value, 0, 1);
+			*value_size = 0;
 			cout<< "Read was issued on non-existent key" <<endl;
-			return -1;
+			return 0;
 		}
 		return 0;
 	}
