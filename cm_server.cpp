@@ -1,4 +1,6 @@
 #include "cm.h"
+#include "utils.h"
+
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -132,8 +134,12 @@ void RunCMServer(string server_address) {
 	cm_service_impl service;
 
 	ServerBuilder builder;
+
+	std::string delimiter = ":";
+	//chanding address to internal address
+  	std::string port = server_address.substr(server_address.find(delimiter)+1, server_address.length());
 	// Listen on the given address without any authentication mechanism.
-	builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+	builder.AddListeningPort(get_ipaddr() + port, grpc::InsecureServerCredentials());
 	// Register "service" as the instance through which we'll communicate with
 	// clients. In this case it corresponds to an *synchronous* service.
 	builder.RegisterService(&service);

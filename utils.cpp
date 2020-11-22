@@ -1,6 +1,35 @@
 
 #include "utils.h"
 
+
+string
+get_ipaddr() {
+	string ipAddress;
+	struct ifaddrs *interfaces = NULL;
+	struct ifaddrs *temp_addr = NULL;
+	int success = 0;
+	// retrieve the current interfaces - returns 0 on success
+	success = getifaddrs(&interfaces);
+	if (success == 0) {
+		// Loop through linked list of interfaces
+		temp_addr = interfaces;
+		while(temp_addr != NULL) {
+			if(temp_addr->ifa_addr->sa_family == AF_INET) {
+				if(strcmp(temp_addr->ifa_name, INTERFACE)==0){
+					ipAddress=inet_ntoa(((struct sockaddr_in*)temp_addr->ifa_addr)->sin_addr);
+#ifdef DEBUG_FLAG				
+					cout<<"\n IPaddress"<<ipAddress;
+#endif
+				}
+			}
+			temp_addr = temp_addr->ifa_next;
+		}
+	}
+	// Free memory
+	freeifaddrs(interfaces);
+	return ipAddress+":";
+}
+
 request_type
 get_c_request_type(KeyStoreRequest::RequestType type) {
 	switch (type) {

@@ -4,6 +4,9 @@ using KeyStore::KeyStoreRequest;
 using KeyStore::KeyStoreResponse;
 using KeyStore::KeyStoreService;
 
+string
+get_ipaddr();
+
 request_type
 get_c_request_type(KeyStoreRequest::RequestType type);
 
