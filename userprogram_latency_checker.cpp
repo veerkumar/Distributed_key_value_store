@@ -17,18 +17,18 @@ typedef unsigned int uint;
 //#define NUMBER_OF_CLIENTS 	1
 
 
-int num_secs = 10;
+int num_secs = 1;
 
 
 // Define your server information here
 // static struct Server_info servers[] = {
 // 		{"127.0.0.1", 10000},{"127.0.0.1", 10001}, {"127.0.0.1", 10002}, {"127.0.0.1", 10003}, {"127.0.0.1", 10004}};
 
-// static struct Server_info servers[] = {
-// 		{"34.75.64.24", 10000},{"34.122.77.87", 10001},{"34.76.84.19",10002},{"104.155.208.169",10003},{"35.228.78.135",10004}};
+ static struct Server_info servers[] = {
+ 		{"34.86.218.217", 10000},{"34.70.0.254", 10001},{"34.76.84.19",10002},{"104.155.208.169",10003},{"35.228.78.135",10004}};
 
-static struct Server_info servers[] = {
-		{"34.75.64.24", 10000},{"34.122.77.87", 10001},{"34.76.84.19",10002}};
+// static struct Server_info servers[] = {
+// 		{"34.75.64.24", 10000},{"34.122.77.87", 10001},{"34.76.84.19",10002}};
 
 
 
@@ -147,7 +147,7 @@ void abd_latency_executer(int read_write_ratio) {
 				if (prob >= read_write_ratio) {
 					latency_type[counter] = 'W';
 				
-					char value[SIZE_OF_VALUE+1] = {0};
+					char value[SIZE_OF_VALUE] = {0};
 					for(int i = 0; i < SIZE_OF_VALUE; i++){
 						value[i] = '0' + rand() % 10;
 					}
@@ -212,7 +212,7 @@ void cm_latency_executer(int read_write_ratio){
 				if (prob >= read_write_ratio) {
 					latency_type[counter] = 'W';
 				
-					char value[SIZE_OF_VALUE+1] = {0};
+					char value[SIZE_OF_VALUE] = {0};
 					for(int i = 0; i < SIZE_OF_VALUE; i++){
 						value[i] = '0' + rand() % 10;
 					}
@@ -270,7 +270,9 @@ int main(int argc, char* argv[]){
 	else if(std::string(argv[1]) == "CM"){
 		
 		cm_latency_executer(1); // 10%
+		std::this_thread::sleep_for (std::chrono::milliseconds(5000));
 		cm_latency_executer(5); // 50%
+		std::this_thread::sleep_for (std::chrono::milliseconds(5000));
 		cm_latency_executer(9); // 90%
 	}
 	else{

@@ -34,13 +34,13 @@
 
 //#define DEBUG_FLAG 0
 
-#define INTERFACE "ens33"
+#define INTERFACE "lo"
 
-#define SIZE_OF_VALUE     3
+#define SIZE_OF_VALUE  3
 
 #define ABD_NUMBER_OF_CLIENTS 10
 
-#define CM_NUMBER_OF_CLIENTS 100
+#define CM_NUMBER_OF_CLIENTS 10
 
 #define INT_SIZE sizeof(int)
 
@@ -116,5 +116,7 @@ typedef struct cm_message_response_ {
 
 
 extern int get_random_number ();
+
+extern mutex file_lock;
 
 #endif //end of COMMONS_H
