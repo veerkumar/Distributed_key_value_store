@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+
+package Paxos;
+
+service PaxosService {
+  rpc PaxosRequestHandler (PaxosRequest) returns (PaxosResponse) {}
+}
+
+/* This single message structure will be used for sending
+*/
+
+message PaxosRequest {
+  enum RequestType {
+    PREPARE = 0;
+    ACCEPT = 1;
+  }
+  enum CommandType {
+    READ = 0;
+    WRITE = 1;
+  }
+  RequestType mptype = 1;
+  CommandType commandType = 2;
+  uint32 proposalClientId = 3;
+  uint32 proposalNum = 4;
+  bytes key = 5;
+  uint32 keySz = 6;
+  bytes  value = 7;         
+  uint32 valueSz = 8;
+  uint32 index = 9;
+  uint32 commandId = 10;
+}
+
+/* This single message defination will be used for all type of message
+*/
+message  PaxosResponse {
+  enum ReturnCode {
+      ACK   = 0;
+      ERROR = 1;
+      OK    = 2;
+      NACK = 3;
+  }
+  enum CommandType {
+    READ = 0;
+    WRITE = 1;
+  }
+  ReturnCode code = 1;
+  CommandType commandType = 2;
+  uint32 proposalClientId = 3;
+  uint32 proposalNum = 4;
+  bytes key = 5;
+  uint32 keySz = 6;
+  bytes  value = 7;         
+  uint32 valueSz = 8;
+  uint32 index = 9;
+  uint32 commandId = 10;
+}

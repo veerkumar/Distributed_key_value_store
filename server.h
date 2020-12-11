@@ -15,9 +15,6 @@ void
 delete_cm_request_t(cm_message_request_t* cm_req);
 
 
-
-
-
 extern mutex abd_ks_map_mutex;
 extern map<string,value_t*> abd_ks_map;
 
@@ -37,3 +34,9 @@ extern int serverlist_size;
 extern int mynodenumber;
 
 extern cm_server_connections *cm_connection_obj;
+
+
+extern mutex mp_ks_map_mutex;
+extern map<string,value_t*> mp_ks_map;
+
+extern mp_server_connections *mp_connection_obj;

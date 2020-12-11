@@ -21,15 +21,22 @@ int serverlist_size;
 
 int mynodenumber;
 
+
 cm_server_connections *cm_connection_obj;
 
+ mutex mp_ks_map_mutex;
+ map<string,value_t*> mp_ks_map;
+ mp_server_connections *mp_connection_obj;
+
+ 
+mutex log_map_mutex;
+map<string, vector<commands_list_t*>> log_map;
 
 
-
-int get_random_number () {
+uint32_t get_random_number () {
 	unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 	std::default_random_engine generator(seed);
-	 std::uniform_int_distribution<int> distribution(0, INT_MAX);
+	 std::uniform_int_distribution<uint32_t> distribution(0, INT_MAX);
 	return distribution(generator);
 }
 
@@ -56,6 +63,64 @@ void enqueue_in_outgoing_queue(value_t *req){
 	cm_outque_mutex.unlock();
 }
 
+bool apply_last_write(string key, int index) {
+
+	commands_list_t *cl =  log_map.find(string(key));
+
+	command_t *prev_cmd = NULL, *temp_cmd;
+	int curr_idx = 0;
+
+	for (auto it = cl.begin(); it != cl.end(); it++) {
+		temp_cmd = *it;
+		 if(curr_idx > index) {
+		 	break;
+		 } else {
+		 	if (temp_cmd->command_type == WRITE) {
+		 		prev_cmd = temp_cmd;
+		 	}
+		 	curr_idx ++;
+		 }
+	}
+
+	if(prev_cmd == NULL ) {
+		return 0;
+	}
+
+	if (mp_ks_map.find(key) !=mp_ks_map.end()) {
+		value_t  *temp_value_t = mp_ks_map[key];
+					
+		#ifdef DEBUG_FLAG
+			cout<< "	MP: Writing with new value" <<endl;
+		#endif
+			//value can change so first delete and the allocate new
+		delete temp_value_t->value;
+		temp_value_t->value = new char[prev_cmd->value_sz+1];
+		memset(temp_value_t->value, 0, prev_cmd->value_sz+1);
+		temp_value_t->value_sz = prev_cmd->value_sz;
+		memcpy(temp_value_t->value, prev_cmd->value, prev_cmd->value_sz);
+
+		mp_ks_map[key] = temp_value_t;
+
+	} else {
+		value_t *temp_value_t = new value_t;
+		temp_value_t->tag.integer = 0;
+		temp_value_t->tag.client_id = 0;
+
+		temp_value_t->key = new char[prev_cmd->key_sz+1];
+		memset(temp_value_t->key,0, prev_cmd->key_sz+1);
+		temp_value_t->key_sz = prev_cmd->key_sz;
+		memcpy(temp_value_t->key, prev_cmd->key, prev_cmd->key_sz);
+
+		temp_value_t->value = new char[prev_cmd->value_sz+1];
+		memset(temp_value_t->value, 0, prev_cmd->value_sz+1);
+		temp_value_t->value_sz = prev_cmd->value_sz;
+		memcpy(temp_value_t->value, prev_cmd->value, prev_cmd->value_sz);
+
+		mp_ks_map[key] = temp_value_t;
+	}
+	return 1;
+}
+
 
 class key_store_service_impl: public KeyStoreService::Service {
 	Status KeyStoreRequestHandler (ServerContext* context, const  KeyStoreRequest* request,
@@ -76,9 +141,9 @@ class key_store_service_impl: public KeyStoreService::Service {
 		if (request->protocol() == KeyStoreRequest::CM) {
 			reply->set_protocol(KeyStoreResponse::CM);
 
-		#ifdef DEBUG_FLAG
-			std::cout << "	Got CM protocol "<<endl;
-		#endif
+			#ifdef DEBUG_FLAG
+				std::cout << "	Got CM protocol "<<endl;
+			#endif
 			// 
 			// reply->set_protocol(KeyStoreResponse::CM);
 
@@ -162,7 +227,7 @@ class key_store_service_impl: public KeyStoreService::Service {
 
 			}
 			
-		} else {
+		} else  if (request->protocol() == KeyStoreRequest::ABD) {
 			#ifdef DEBUG_FLAG
 			std::cout << "	Got ABD protocol "<<endl;
 			#endif
@@ -301,11 +366,317 @@ class key_store_service_impl: public KeyStoreService::Service {
 				reply->set_valuesz(0);
 				
 			} // end of WRITE 
-		} // end of ABD 
+		} else {
+			//MP protocol
+			mp_mutex.lock();
+			reply->set_protocol(KeyStoreResponse::MP);
+
+			#ifdef DEBUG_FLAG
+				std::cout << "	Got MP protocol "<<endl;
+			#endif
+			if (request->type() ==  KeyStoreRequest::READ) {
+
+				#ifdef DEBUG_FLAG
+				std::cout << "	 Got request type: READ   "<<endl;
+				#endif
+				/* Fetch the value for the given key and send the response */
+				if(request->key() != "00000" && (mp_ks_map.find(string(request->key().c_str())) != mp_ks_map.end())) {
+					/* Found the key */
+					
+					int index = insert_command(request);
+					//Apply the last write
+					mp_ks_map_mutex.lock();
+					if(apply_last_write(request->key().c_str()),index) {
+
+						value_t *temp_value_t = mp_ks_map[string(request->key().c_str())];
+						reply->set_integer(temp_value_t->tag.integer);
+						reply->set_clientid(temp_value_t->tag.client_id);
+						reply->set_key(temp_value_t->key,temp_value_t->key_sz);
+						reply->set_keysz(temp_value_t->key_sz);
+						reply->set_value(temp_value_t->value,temp_value_t->value_sz);
+						reply->set_valuesz(temp_value_t->value_sz);
+					} else {
+						cout<<"	In MP Read, key doesnt exists" << endl;
+						reply->set_integer(0);
+						reply->set_clientid(0);
+						reply->set_keysz(0);
+						reply->set_valuesz(0);
+						reply->set_code(KeyStoreResponse::ERROR);
+					}
+					mp_ks_map_mutex.unlock();
+				}
+					
+			} else {
+				#ifdef DEBUG_FLAG
+				std::cout << "	 Got request type: WRITE   "<<endl;
+				#endif
+				int index = insert_command(request);
+
+				cout<<" Inserted at index :" <<index;
+
+				// First send message to all server till this command is not written is not written
+
+				reply->set_integer(0);
+				reply->set_clientid(0);
+				reply->set_keysz(0);
+				reply->set_valuesz(0);
+				reply->set_code(KeyStoreResponse::OK);
+			}
+			mp_mutex.unlock();
+	}
 		
 		return Status::OK;
 	} // End of service implementation
 };
+
+command_t* get_new_alloc_command(int client_id, int proposal_num) {
+	command_t *cmd = new command_t;
+	cmd->command_id = get_random_number() + (uint32_t) client_id;
+	cmd->min_proposal_num.proposal_client_id = client_id;
+	cmd->min_proposal_num.proposal_num = proposal_num;
+	cmd->accepted_proposal.proposal_client_id = client_id;
+	cmd->accepted_proposal.proposal_num = proposal_num;
+	cmd->key_sz = 0;
+	cmd->key = NULL;
+	cmd->value_sz = 0;
+	cmd->value = NULL;
+	return cmd;
+}
+
+void fill_command_from_request_t(KeyStoreRequest *req, command_t **cmd) {
+	*cmd->key = new char[req->keysz()+1];
+	memset ((*cmd)->key, 0 ,req->keysz()+1 );
+	memcpy ((*cmd)->key, req->key(), req->keysz());
+	(*cmd)->key_sz = req->keysz();
+
+	*cmd->value = new char[req->valuesz()+1];
+	memset ((*cmd)->value, 0 ,req->valuesz()+1 );
+	memcpy ((*cmd)->value, req->value(), req->valuesz());
+	(*cmd)->value_sz = req->valuesz();
+	(*cmd)->command_type =  get_c_request_type(req->type());
+}
+
+ 
+void delete_command_t (command_t *cmd) {
+	if(cmd->key_sz) delete cmd->key;
+	if(cmd->value_sz)delete cmd->value;
+	delete cmd;
+}
+
+command_t*
+get_highest_accepted_proposal(vector<command_t*> &vec_c_resp, bool prepare_phase) {
+	command_t*  max_resp = vec_c_resp[0];
+	int total_size = vec_c_resp.size();
+	int i = 0;
+	int max_nack_proposal_num = -1;
+	for(auto it = vec_c_resp.begin(); it!= vec_c_resp.end();) {
+		if ((*it)->code == NACK) {
+			max_resp = *it;
+			if( (*it)->accepted_proposal.proposal_num > max_nack_proposal_num) {
+					max_nack_proposal_num = (*it)->accepted_proposal.proposal_num;
+			}
+			if (vec_c_resp.size()>1){
+				delete_command_t (max_resp);
+			}
+			vec_c_resp.erase(it);
+		}
+	}
+
+	if (vec_c_resp.size() !=0) {
+		 max_resp = vec_c_resp[0];
+		for(auto it = vec_c_resp.begin(); it!= vec_c_resp.end();) {
+				if ((*it)->accepted_proposal.proposal_num >= max_resp->accepted_proposal.proposal_num) {
+					if ((*it)->accepted_proposal.proposal_num == max_resp->accepted_proposal.proposal_num) {
+						if((*it)->accepted_proposal.proposal_client_id > max_resp->accepted_proposal.proposal_client_id){
+							delete_command_t (max_resp);
+							max_resp = *it;
+							vec_c_resp.erase(it);
+							continue;
+						} else {
+							vec_c_resp.erase(it);
+							continue;
+						}
+					}
+				}
+				delete_command_t(*it);
+				vec_c_resp.erase(it);
+		}
+	} else {
+		max_resp->accepted_proposal.proposal_num = max_nack_proposal_num;
+		#ifdef DEBUG_FLAG
+			cout<<" All responses were NACK"<<endl;
+		#endif
+		return max_resp;
+	}
+
+	if (max_nack_proposal_num > -1 && !prepare_phase) {
+		#ifdef DEBUG_FLAG
+			cout<<"In accept phase, receviced one NACK"<<endl;
+		#endif
+		delete_command_t(max_resp);
+		command_id *cmd = new command_t;
+		cmd->code = NACK;
+		cmd->key_sz = 0;
+		cmd->key = NULL;
+		cmd->value_sz = 0;
+		cmd->value = NULL;
+		cmd->accepted_proposal.proposal_num = max_nack_proposal_num;
+		return cmd;
+	}
+
+	if(max_resp->accepted_proposal.proposal_num >= -1 && max_nack_proposal_num > -1) {
+		// It means we have some node which has higher proposal number and some has lower proposal number
+		// Hence we need to restart prepare phase with higher proposalnumber as in accept phase it will be rejected.
+		#ifdef DEBUG_FLAG
+			cout<<"Maximum proposal number: -1, Some higher client_id had some value but over proposal number was small"<<endl;
+		#endif
+		max_resp->code = NACK;
+		max_resp->key_sz = 0;
+		max_resp->value_sz = 0;
+		max_resp->accepted_proposal.proposal_num = max_nack_proposal_num;
+	} else if(max_resp->accepted_proposal.proposal_num == -1){
+		#ifdef DEBUG_FLAG
+			cout<<"Maximum proposal number: -1, all client_id had no value"<<endl;
+		#endif
+		max_resp->code = OK;
+		max_resp->key_sz = 0;
+		max_resp->value_sz = 0;
+	}
+
+	// if(max_resp->accepted_proposal.proposal_num > -1 && max_nack_proposal_num > -1) {
+	// 	// It means we have some node which has higher proposal number and some has lower proposal number
+	// 	// Hence we need to restart prepare phase with higher value as, in accpet phase it will get rejected.
+	// 	// Also will be overwritten 
+	// }
+	
+	#ifdef DEBUG_FLAG
+		print_command_t(max_resp, 0);
+	#endif
+	
+	return max_resp;
+}
+
+command_t*  
+propose (command_t *orig_cmd, int propose_index) {
+	command_t *temp_cmd = orig_cmd;
+	command_t *sent_cmd = NULL;
+	vector<command_t*> vec_c_resp = orig_cmd;
+	while (1) {
+		//Propose phase
+		temp_cmd->mp_req_type =  PREPARE;
+		promise<vector<response_t*>> pm =  promise<vector<response_t*>>();
+    	future <vector<response_t*>> fu = pm.get_future();
+		thread t1(send_message_to_all_mp_server, ref(pm), temp_cmd);
+		t1.detach();
+		vec_c_resp = fu.get();
+		
+		// Find the highest accepted proposal number
+		temp_cmd = get_highest_accepted_proposal (vec_c_resp, 1);
+		if (temp_cmd.code == NACK) {
+			orig_cmd->accepted_proposal.proposal_num = temp_cmd->accepted_proposal.proposal_num + serverlist_size;
+			delete_command_t(temp_cmd);
+			temp_cmd = orig_cmd;
+			//Since we got all NACK, it means over proposal number was lowest, no meaning of accept phase
+			continue;
+		}
+		if (temp_cmd.code == OK) {
+			// we got all -1, It means our value will be accepted with current proposal number
+			delete_command_t(temp_cmd);
+			temp_cmd = orig_cmd;
+		}
+
+		// Modify, datatype, proposal number
+		temp_cmd->mp_req_type =  ACCEPT;
+		temp_cmd->accepted_proposal.proposal_client_id = orig_cmd->accepted_proposal.proposal_client_id;
+		temp_cmd->accepted_proposal.proposal_num = orig_cmd->accepted_proposal.proposal_num;
+		sent_cmd = temp_cmd;
+		promise<vector<response_t*>> pm1 =  promise<vector<response_t*>>();
+    	future <vector<response_t*>> fu1 = pm.get_future();
+		thread t2(send_message_to_all_mp_server, ref(pm1), temp_cmd);
+		t2.detach();
+		vec_c_resp = fu.get();
+
+		temp_cmd = get_highest_accepted_proposal (vec_c_resp, 0);
+		if (temp_cmd == NULL) {
+			cout<<" Somthing went wrong" <<endl;
+		}
+		if(temp_cmd->command_id == sent_cmd->command_id) {
+			cout<<"Proposal got accpeted" <<endl;
+			break;
+		} else {
+			orig_cmd->accepted_proposal.proposal_num = temp_cmd->accepted_proposal.proposal_num + serverlist_size;
+			delete_command_t(temp_cmd);
+			temp_cmd = orig_cmd;
+		}
+
+	}
+	return temp_cmd;
+}
+// This function implements multipaxos 
+int insert_command(KeyStoreRequest  *req) {
+	command_t *orig_cmd = get_new_alloc_command(req->client_id, req->type, 0);
+	fill_command_from_request_t(req, &orig_cmd);
+	int curr_idx;
+
+	command_t *temp_cmd = orig_cmd; // Intially temperory command is equal to original command
+	commands_list_t *cl =  NULL;
+	log_lock_mutex.lock();
+	if (log_map.find(string(curr_cmd->key)) != log_map.end()){
+		cl =  log_map.find(string(curr_cmd->key));
+		curr_idx = *(cl->next_available_slot.begin());
+	} else {
+		cl = new commands_list_t;
+		cl->cmd_vec.reserve(INIT_COMMAND_LENGTH); 
+		for (int i = 0; i < INIT_COMMAND_LENGTH; i++ ) {
+			command_t *cmd = new command_t;
+			cmd->min_proposal_num.proposal_client_id = -1;
+			cmd->min_proposal_num.proposal_num = -1;
+			cmd->accepted_proposal.proposal_client_id = -1;
+			cmd->accepted_proposal.proposal_num = -1;
+			cmd->key_sz = 0;
+			cmd->key = NULL;
+			cmd->value_sz = 0;
+			cmd->value = NULL;
+			cmd->command_id = 0;
+			cmd->index = -1; 
+			cl->cmd_vec[i] = cmd ;
+			cl->next_available_slot.insert(i);
+		}
+		cl->last_applied_index = -1;
+		curr_idx =  *(cl->next_available_slot.begin());
+		//cl->cmd_vec[curr_idx] = cmd;
+		
+	}
+	log_map[string(curr_cmd->key)] = cl;
+	log_lock_mutex.unlock();
+
+	//temp_cmd->command_id =  cmd->command_id;
+	// Multi Paxos
+	while (1) {
+		command_t *temp_cmd = propose (orig_cmd, curr_idx);
+
+		log_map_mutex.lock();
+		if( orig_cmd->command_id == temp_cmd->command_id) {
+			#ifdef DEBUG_FLAG
+				cout<<" MP: value is been accepted by other nodes" <<endl;
+			#endif
+			delete_command_t(cl->cmd_vec[curr_idx]);
+			cl->cmd_vec[curr_idx] = orig_cmd;
+			cl->next_available_slot.remove(curr_idx);
+			break;
+		} else {
+			#ifdef DEBUG_FLAG
+				cout<<" MP: value is defeated by other nodes" <<endl;
+			#endif
+			delete_command_t(cl->cmd_vec[curr_idx]);
+			cl->cmd_vec[curr_idx] = temp_cmd;
+			curr_idx = *(cl->next_available_slot.begin());
+			cl->next_available_slot.remove(curr_idx);
+		}
+		log_map_mutex.unlock();
+	}
+	return curr_idx;
+}
 
 void RunServer(string server_address) {
 
@@ -506,7 +877,7 @@ int main(int argc, char** argv) {
 		temp_value_t->key_sz = 0;
 		abd_ks_map["00000"] = temp_value_t;
 
-	} else {
+	} else if(std::string(argv[2]) == "CM"){
 		if ( argc !=4){
 		cout << "Please pass 4 arguments for CM, \n portnumber, Protocol(ABD/CM) mylocation(location of this server ip in server_info.txt, starting from 0)"<<endl;
 		return -1;
@@ -541,6 +912,34 @@ int main(int argc, char** argv) {
 		t2.detach();
 		t3.detach();
 
+	} else {
+		if ( argc !=4){
+		cout << "Please pass 4 arguments for CM, \n portnumber, Protocol(ABD/CM) mylocation(location of this server ip in server_info.txt, starting from 0)"<<endl;
+		return -1;
+		}
+		server_address =  get_ipaddr() + string(argv[1]);
+		mylocation = stoi(string(argv[3]));
+		#ifdef DEBUG_FLAG
+		cout<<"mylocation:" <<mylocation<<endl;
+		#endif
+		//Reading file
+		std::ifstream infile("server_info.txt");
+		std::vector<string> server_list;
+		string s1, s2;
+		while (infile >> s1 >> s2)
+		{
+			#ifdef DEBUG_FLAG
+				cout<< s1+":"+s2<<endl;
+			#endif
+			server_list.push_back(s1+":"+s2);
+		}
+		cm_connection_obj = new cm_server_connections(server_list, mylocation);
+		t =  new int[server_list.size()];
+		memset(t, 0, server_list.size()*INT_SIZE);
+		serverlist_size = server_list.size();
+		mynodenumber = mylocation;
+		thread t1(RunCMServer, server_list[mylocation]);
+		t1.detach();
 	}
 
 	RunServer(server_address);

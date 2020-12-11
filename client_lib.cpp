@@ -56,6 +56,9 @@ make_req_payload (KeyStoreRequest *payload,
 	if (req->protocol == ABD) {
 		payload->set_protocol(KeyStoreRequest::ABD);
 	}
+	if (req->protocol == MP) {
+		payload->set_protocol(KeyStoreRequest::MP);
+	}
 
 	if (req->type == WRITE_QUERY) {
 		payload->set_type(KeyStoreRequest::WRITE_QUERY);
@@ -117,6 +120,9 @@ extract_response_from_payload(KeyStoreResponse *Response, KeyStoreRequest req, b
 		c_response->protocol = ABD;
 		c_response->tag.integer = Response->integer();
 		c_response->tag.client_id = Response->clientid();
+	}
+	if (Response->protocol() == KeyStoreResponse::MP) {
+		c_response->protocol = MP;
 	}
 
 	
@@ -297,7 +303,7 @@ void send_message_to_one_server(promise<response_t*>& prom, client_wrapper *cw, 
 	for (auto it = cw->conn->connections.begin(); it!=cw->conn->connections.end(); it++) {
 		if( c_req->tag.client_id %number_of_servers == i) {
 		#ifdef DEBUG_FLAG
-			cout<<"CM: Sending to server = "<< c_req->tag.client_id%number_of_servers<<endl;
+			cout<<"CM/MP: Sending to server = "<< c_req->tag.client_id%number_of_servers<<endl;
 		#endif
 		pm = promise<response_t*>();
 		fu = pm.get_future();
@@ -311,7 +317,7 @@ void send_message_to_one_server(promise<response_t*>& prom, client_wrapper *cw, 
         c_resp = fu.get();
     } 
     #ifdef DEBUG_FLAG
-    	cout<<"CM: Got the Response returning now"<<endl;
+    	cout<<"CM/MP: Got the Response returning now"<<endl;
     #endif
     prom.set_value(c_resp);    
 	// caller will clean the "vec_resp"
@@ -357,7 +363,7 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 		delete_request_t (c_req); 
 		return 0;
 
-	} else {
+	} else if (string(c->protocol) == "ABD"){
 		/* ABD algorithm case */
 	#ifdef DEBUG_FLAG
 		cout<< "ABD protocol: Put request"<<endl;
@@ -399,6 +405,33 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 		vec_c_resp = fu1.get();
 		max_resp = find_majority_tag(vec_c_resp); 
 		delete_response_t(max_resp); 
+		delete_request_t (c_req); 
+		return 0;
+	} else {
+		response_t *c_resp = NULL;
+		#ifdef DEBUG_FLAG
+			cout<< "MP protocol: Put request"<<endl;
+		#endif
+		request_t *c_req = new request_t;
+		c_req->type = WRITE;
+		c_req->protocol = MP;
+		c_req->tag.integer = 0; // Since query will fetch the integer
+		c_req->tag.client_id = c->id;
+		c_req->key = new char[key_size+1];
+		memset(c_req->key, 0, key_size+1);
+		memcpy(c_req->key, key, key_size);
+		c_req->key_sz = key_size;
+		c_req->value = new char[value_size+1];	
+		memset(c_req->value, 0, value_size+1);
+		memcpy(c_req->value, value, value_size);
+		c_req->value_sz = value_size;
+
+		promise<response_t*> pm =  promise<response_t*>();
+    	future <response_t*> fu = pm.get_future();
+		thread t1(send_message_to_one_server, ref(pm), client_list[c->id], c_req);
+		t1.detach();
+		c_resp = fu.get();
+		delete_response_t(c_resp); 
 		delete_request_t (c_req); 
 		return 0;
 	}
@@ -453,7 +486,7 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			return 0;
 		}
 		return 0;
-	} else {
+	} else if (string(c->protocol) == "ABD") {
 		/* ABD algorithm case */
 		#ifdef DEBUG_FLAG
 			cout<< "ABD protocol: Get request"<<endl;
@@ -509,6 +542,44 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 			#endif
 			delete_request_t(c_req);
 		} else {
+			*value = new char[1];
+			memset(*value, 0, 1);
+			*value_size = 0;
+			cout<< "Read was issued on non-existent key" <<endl;
+			return 0;
+		}
+		return 0;
+	}  else {
+		response_t *c_resp = NULL;
+		#ifdef DEBUG_FLAG
+			cout<< "MP protocol: Get request"<<endl;
+		#endif
+		request_t *c_req = new request_t;
+		c_req->type = READ;
+		c_req->protocol = MP;
+		c_req->tag.integer = 0; // Since query will fetch the integer
+		c_req->tag.client_id = c->id;
+		c_req->key = new char[key_size+1];
+		memset(c_req->key, 0, key_size+1);
+		memcpy(c_req->key, key, key_size);
+		c_req->key_sz = key_size;
+		c_req->value_sz = 0;
+
+		promise<response_t*> pm =  promise<response_t*>();
+    	future <response_t*> fu = pm.get_future();
+		thread t1(send_message_to_one_server, ref(pm), client_list[c->id], c_req);
+		t1.detach();
+		c_resp = fu.get();
+		*value = new char[c_resp->value_sz+1];
+		memcpy(*value, c_resp->value, c_resp->value_sz);
+		(*value)[c_resp->value_sz] = '\0';
+		*value_size = c_resp->value_sz;
+		#ifdef DEBUG_FLAG
+			cout <<"Returning following value in MP GET operation :" <<endl;
+			cout<<"		Value:"<<*value <<endl;
+			cout<<"		Size :"<<*value_size<<endl;
+		#endif
+		if (c_resp->value_sz == 0) {
 			*value = new char[1];
 			memset(*value, 0, 1);
 			*value_size = 0;

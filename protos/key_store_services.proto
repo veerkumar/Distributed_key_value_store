@@ -21,6 +21,7 @@ message KeyStoreRequest {
   enum ProtocolType {
       CM = 0;
       ABD = 1;
+      MP = 2;
   }
   RequestType type = 1;
   ProtocolType protocol = 2;
@@ -37,13 +38,14 @@ message KeyStoreRequest {
 */
 message  KeyStoreResponse {
   enum ReturnCode {
-  ACK   = 0;
-  ERROR = 1;
-  OK    = 2;
+    ACK   = 0;
+    ERROR = 1;
+    OK    = 2;
   }
   enum ProtocolType {
       CM = 0;
       ABD = 1;
+      MP = 2;
   }
   ReturnCode code = 1;
   ProtocolType protocol = 2;

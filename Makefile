@@ -20,11 +20,11 @@ obj1 = $(filter-out obj/server_driver.o, $(obj)) # Object files for userprogram 
 all: system-check obj Client Server libProject1.a
 
 client : obj Client
-Client: key_store_services.pb.o key_store_services.grpc.pb.o utils.o client_lib.o userprogram_latency_checker.o
+Client: key_store_services.pb.o key_store_services.grpc.pb.o utils.o client_lib.o userprogram_multipaxos.o
 	$(CXX) -g -o $@ $^ $(LDFLAGS) # Link object files and create the client application
 
 server: obj Server
-Server: key_store_services.pb.o key_store_services.grpc.pb.o cm_services.pb.o cm_services.grpc.pb.o utils.o cm_client.o cm_server.o server.o
+Server: key_store_services.pb.o key_store_services.grpc.pb.o cm_services.pb.o cm_services.grpc.pb.o paxos_services.pb.o paxos_services.grpc.pb.o utils.o cm_client.o cm_server.o paxos_client.o paxos_server.o server.o
 	$(CXX) -g -o $@ $^ $(LDFLAGS) # Link object files and create the server application
 
 libProject1.a: key_store_services.pb.o key_store_services.grpc.pb.o utils.o client_lib.o

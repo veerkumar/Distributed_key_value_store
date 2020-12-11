@@ -44,6 +44,8 @@
 
 #define INT_SIZE sizeof(int)
 
+#define INIT_COMMAND_LENGTH 100000
+
 
 using namespace std;
 enum request_type {
@@ -56,13 +58,17 @@ enum request_type {
 enum return_code {
             ACK = 0,
             ERROR = 1,
-            OK = 2
+            OK = 2,
+            NACK = 3,
+            SOME_NACK = 4;
 };
 
 enum protocol_type {
 	CM = 0,
-	ABD = 1
+	ABD = 1,
+  MP = 2  // Multi-Paxos
 };
+
 typedef struct tag {
 	uint32_t integer;
 	uint32_t client_id;
@@ -114,9 +120,34 @@ typedef struct cm_message_response_ {
 
 
 
+// typedef struct mp_message_request_ {
+//   mp_request_type type;
+//   uint32_t proposal_num;
+//   char* key;
+//   uint32_t key_sz;
+//   char* value;
+//   uint32_t value_sz;
+//   uint32_t index;
+  
+// } mp_message_request_t;
+
+// typedef struct mp_message_response_ {
+//   return_code code;
+//   uint32_t accpeted_num;
+//   char* key;
+//   uint32_t key_sz;
+//   char* value;
+//   uint32_t value_sz;
+//   uint32_t index;
+
+// } mp_message_response_t;
+
+
 
 extern int get_random_number ();
 
-extern mutex file_lock;
+bool apply_last_write(string key, int index)
+
+
 
 #endif //end of COMMONS_H
