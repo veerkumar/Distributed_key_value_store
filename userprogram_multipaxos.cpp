@@ -17,7 +17,7 @@
 
 typedef unsigned int uint;
 
-#define NUMBER_OF_CLIENTS 	1
+#define NUMBER_OF_CLIENTS 	3
 #define SIZE_OF_VALUE 		3 //bytes
 
 // Define your server information here
@@ -73,7 +73,7 @@ int main(int argc, char* argv[]){
 	// Create clients
 	struct Client* mp_clt[NUMBER_OF_CLIENTS];
 	for(uint i = 0; i < NUMBER_OF_CLIENTS; i++){
-		mp_clt[i] = client_instance(i, "MP", &servers[i], 1);
+		mp_clt[i] = client_instance(i, "MP", servers, sizeof(servers) / sizeof(struct Server_info));
 		if(mp_clt[i] == NULL){
 			fprintf(stderr, "%s\n", "Error occured in creating clients");
 			return -1;
@@ -82,14 +82,14 @@ int main(int argc, char* argv[]){
 
 	// Do write operations concurrently
 	std::vector<std::thread*> threads;
-	srand(time(NULL));
+	srand(time(0));
 	for(uint i = 0; i < NUMBER_OF_CLIENTS; i++){
 		
 		// build a random value
 		
-		char value[SIZE_OF_VALUE];
+		char value[SIZE_OF_VALUE]={0};
 		for(int i = 0; i < SIZE_OF_VALUE; i++){
-			value[i] = '0' + rand() % 10;
+			value[i] = '0' + rand() % 10 ;
 		}
 
 		// run the thread

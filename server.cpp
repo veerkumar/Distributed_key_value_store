@@ -33,6 +33,7 @@ mp_server_connections *mp_connection_obj;
 mutex log_map_mutex;
 map<string, commands_list_t*> log_map;
 mutex mp_mutex;
+mutex printing_mutex;
 
 
 uint32_t get_random_number () {
@@ -381,32 +382,29 @@ class key_store_service_impl: public KeyStoreService::Service {
 				#ifdef DEBUG_FLAG
 				std::cout << "Got request type: READ   "<<endl;
 				#endif
+				uint32_t index = insert_command(request);
 				/* Fetch the value for the given key and send the response */
-				if(request->key() != "00000" && (mp_ks_map.find(string(request->key().c_str())) != mp_ks_map.end())) {
+				//if(request->key() != "00000" && (mp_ks_map.find(string(request->key().c_str())) != mp_ks_map.end())) {
+				mp_ks_map_mutex.lock();
+				if(apply_last_write(request->key().c_str(),index)) {
 					/* Found the key */
-					
-					uint32_t index = insert_command(request);
-					//Apply the last write
-					mp_ks_map_mutex.lock();
-					if(apply_last_write(request->key().c_str(),index)) {
-
-						value_t *temp_value_t = mp_ks_map[string(request->key().c_str())];
-						reply->set_integer(temp_value_t->tag.integer);
-						reply->set_clientid(temp_value_t->tag.client_id);
-						reply->set_key(temp_value_t->key,temp_value_t->key_sz);
-						reply->set_keysz(temp_value_t->key_sz);
-						reply->set_value(temp_value_t->value,temp_value_t->value_sz);
-						reply->set_valuesz(temp_value_t->value_sz);
-					} else {
-						cout<<"	In MP Read, key doesnt exists" << endl;
-						reply->set_integer(0);
-						reply->set_clientid(0);
-						reply->set_keysz(0);
-						reply->set_valuesz(0);
-						reply->set_code(KeyStoreResponse::ERROR);
-					}
-					mp_ks_map_mutex.unlock();
+					cout<<"Found the key" <<endl;
+					value_t *temp_value_t = mp_ks_map[string(request->key().c_str())];
+					reply->set_integer(temp_value_t->tag.integer);
+					reply->set_clientid(temp_value_t->tag.client_id);
+					reply->set_key(temp_value_t->key,temp_value_t->key_sz);
+					reply->set_keysz(temp_value_t->key_sz);
+					reply->set_value(temp_value_t->value,temp_value_t->value_sz);
+					reply->set_valuesz(temp_value_t->value_sz);
+				} else {
+					cout<<"	In MP Read, key doesnt exists" << endl;
+					reply->set_integer(0);
+					reply->set_clientid(0);
+					reply->set_keysz(0);
+					reply->set_valuesz(0);
+					reply->set_code(KeyStoreResponse::ERROR);
 				}
+				mp_ks_map_mutex.unlock();
 				print_current_log_db_state();
 					
 			} else {
@@ -436,10 +434,14 @@ class key_store_service_impl: public KeyStoreService::Service {
 command_t* get_new_alloc_command(int client_id, int proposal_num) {
 	command_t *cmd = new command_t;
 	cmd->command_id = get_random_number() + (uint32_t) client_id;
-	cmd->min_proposal_num.proposal_client_id = client_id;
-	cmd->min_proposal_num.proposal_num = proposal_num;
-	cmd->accepted_proposal.proposal_client_id = client_id;
-	cmd->accepted_proposal.proposal_num = proposal_num;
+	
+	cmd->min_proposal_num =  new proposal_t;
+	cmd->min_proposal_num->proposal_client_id = client_id;
+	cmd->min_proposal_num->proposal_num = proposal_num;
+
+	cmd->accepted_proposal =  new proposal_t;
+	cmd->accepted_proposal->proposal_client_id = client_id;
+	cmd->accepted_proposal->proposal_num = proposal_num;
 	cmd->key_sz = 0;
 	cmd->key = NULL;
 	cmd->value_sz = 0;
@@ -464,13 +466,15 @@ void fill_command_from_request_t(const KeyStoreRequest *req, command_t **cmd) {
 void delete_command_t (command_t *cmd) {
 	if(cmd->key_sz) delete cmd->key;
 	if(cmd->value_sz)delete cmd->value;
+	if(cmd->min_proposal_num) delete cmd->min_proposal_num;
+	if(cmd->accepted_proposal) delete cmd->accepted_proposal;
 	delete cmd;
 }
 
 command_t*
 get_highest_accepted_proposal(vector<command_t*> &vec_c_resp, bool prepare_phase) {
 	#ifdef DEBUG_FLAG
-		cout<<"get_highest_accepted_proposal function" <<endl;
+		cout<<"\nget_highest_accepted_proposal function" <<endl;
 	#endif
 	command_t*  max_resp = vec_c_resp[0];
 	// int total_size = vec_c_resp.size();
@@ -479,9 +483,10 @@ get_highest_accepted_proposal(vector<command_t*> &vec_c_resp, bool prepare_phase
 	for(auto it = vec_c_resp.begin(); it!= vec_c_resp.end();) {
 		if ((*it)->code == NACK) {
 			max_resp = *it;
-			if( (*it)->accepted_proposal.proposal_num > max_nack_proposal_num) {
-					max_nack_proposal_num = (*it)->accepted_proposal.proposal_num;
+			if( (*it)->accepted_proposal->proposal_num > max_nack_proposal_num) {
+					max_nack_proposal_num = (*it)->accepted_proposal->proposal_num;
 			}
+			//Keep atmost 1, for returning.
 			if (vec_c_resp.size()>1){
 				delete_command_t (max_resp);
 			}
@@ -495,11 +500,14 @@ get_highest_accepted_proposal(vector<command_t*> &vec_c_resp, bool prepare_phase
 	#endif
 
 	if (vec_c_resp.size() !=0) {
+		cout<<"Size of responses:"<< vec_c_resp.size()<< endl;
 		 max_resp = vec_c_resp[0];
-		for(auto it = vec_c_resp.begin(); it!= vec_c_resp.end();) {
-				if ((*it)->accepted_proposal.proposal_num >= max_resp->accepted_proposal.proposal_num) {
-					if ((*it)->accepted_proposal.proposal_num == max_resp->accepted_proposal.proposal_num) {
-						if((*it)->accepted_proposal.proposal_client_id > max_resp->accepted_proposal.proposal_client_id){
+		 auto it = vec_c_resp.begin();
+		 it++;
+		for(;it!= vec_c_resp.end();) {
+				if ((*it)->accepted_proposal->proposal_num >= max_resp->accepted_proposal->proposal_num) {
+					if ((*it)->accepted_proposal->proposal_num == max_resp->accepted_proposal->proposal_num) {
+						if((*it)->accepted_proposal->proposal_client_id >= max_resp->accepted_proposal->proposal_client_id){
 							delete_command_t (max_resp);
 							max_resp = *it;
 							vec_c_resp.erase(it);
@@ -513,10 +521,12 @@ get_highest_accepted_proposal(vector<command_t*> &vec_c_resp, bool prepare_phase
 				delete_command_t(*it);
 				vec_c_resp.erase(it);
 		}
+		cout<<"Selected max_resp :";
+		print_command_t(max_resp,1);
 	} else {
-		max_resp->accepted_proposal.proposal_num = max_nack_proposal_num;
+		max_resp->accepted_proposal->proposal_num = max_nack_proposal_num + 1;
 		#ifdef DEBUG_FLAG
-			cout<<" All responses were NACK"<<endl;
+			cout<<" All responses were NACK and "<<endl;
 		#endif
 		return max_resp;
 	}
@@ -532,11 +542,13 @@ get_highest_accepted_proposal(vector<command_t*> &vec_c_resp, bool prepare_phase
 		cmd->key = NULL;
 		cmd->value_sz = 0;
 		cmd->value = NULL;
-		cmd->accepted_proposal.proposal_num = max_nack_proposal_num;
+		cmd->accepted_proposal = new proposal_t;
+		cmd->min_proposal_num = new proposal_t;;
+		cmd->accepted_proposal->proposal_num = max_nack_proposal_num + 1;
 		return cmd;
 	}
 
-	if(max_resp->accepted_proposal.proposal_num >= -1 && max_nack_proposal_num > -1) {
+	if(max_resp->accepted_proposal->proposal_num >= -1 && max_nack_proposal_num > -1) {
 		// It means we have some node which has higher proposal number and some has lower proposal number
 		// Hence we need to restart prepare phase with higher proposalnumber as in accept phase it will be rejected.
 		#ifdef DEBUG_FLAG
@@ -545,8 +557,8 @@ get_highest_accepted_proposal(vector<command_t*> &vec_c_resp, bool prepare_phase
 		max_resp->code = NACK;
 		max_resp->key_sz = 0;
 		max_resp->value_sz = 0;
-		max_resp->accepted_proposal.proposal_num = max_nack_proposal_num;
-	} else if(max_resp->accepted_proposal.proposal_num == -1){
+		max_resp->accepted_proposal->proposal_num = max_nack_proposal_num + 1;
+	} else if(max_resp->accepted_proposal->proposal_num == -1){
 		#ifdef DEBUG_FLAG
 			cout<<"Maximum proposal number: -1, all client_id had no value"<<endl;
 		#endif
@@ -555,31 +567,43 @@ get_highest_accepted_proposal(vector<command_t*> &vec_c_resp, bool prepare_phase
 		max_resp->value_sz = 0;
 	}
 
-	// if(max_resp->accepted_proposal.proposal_num > -1 && max_nack_proposal_num > -1) {
+	// if(max_resp->accepted_proposal->proposal_num > -1 && max_nack_proposal_num > -1) {
 	// 	// It means we have some node which has higher proposal number and some has lower proposal number
 	// 	// Hence we need to restart prepare phase with higher value as, in accpet phase it will get rejected.
 	// 	// Also will be overwritten 
 	// }
 	
-	
-	#ifdef DEBUG_FLAG
+	#ifdef DEBUG_FLAG 
+		cout<<"\n"<<__func__<< ": ";
 		cout<<"Selected max value:" <<endl;
 		print_command_t(max_resp,0);
 	#endif
 
 	return max_resp;
 }
+void update_local_values(command_t *orig_cmd) {
+	cout<<"Updating local copy"<<endl;
+	commands_list_t *cl =  log_map.find(string(orig_cmd->key))->second;
+	command_t *temp_cmd = cl->cmd_vec[orig_cmd->index];
+	temp_cmd->min_proposal_num->proposal_client_id = orig_cmd->accepted_proposal->proposal_client_id;
+	temp_cmd->min_proposal_num->proposal_num = orig_cmd->accepted_proposal->proposal_num;
+	temp_cmd->index = orig_cmd->index;
+	//temp_cmd->command_id = 0;
+}
 
 command_t*  
-propose (command_t *orig_cmd, int propose_index) {
+propose (command_t *orig_cmd) {
 	command_t *temp_cmd = orig_cmd;
 	command_t *sent_cmd = NULL;
 	vector<command_t*> vec_c_resp ;
 	while (1) {
 		//Propose phase
+		update_local_values(orig_cmd);
 		temp_cmd->mp_req_type =  PREPARE;
 		promise<vector<command_t*>> pm =  promise<vector<command_t*>>();
     	future <vector<command_t*>> fu = pm.get_future();
+    	//cout<<"New proposal_num selected is :" << temp_cmd->accepted_proposal->proposal_num<<endl;
+    	//print_command_t(temp_cmd,1);
 		thread t1(send_message_to_all_mp_server, ref(pm), temp_cmd);
 		t1.detach();
 		vec_c_resp = fu.get();
@@ -590,9 +614,11 @@ propose (command_t *orig_cmd, int propose_index) {
 		// Find the highest accepted proposal number
 		temp_cmd = get_highest_accepted_proposal (vec_c_resp, 1);
 		if (temp_cmd->code == NACK) {
-			orig_cmd->accepted_proposal.proposal_num = temp_cmd->accepted_proposal.proposal_num + serverlist_size;
+			orig_cmd->accepted_proposal->proposal_num = temp_cmd->accepted_proposal->proposal_num ;
+			cout<<"New proposal_num selected is :" << orig_cmd->accepted_proposal->proposal_num<<endl;
 			delete_command_t(temp_cmd);
 			temp_cmd = orig_cmd;
+			cout<<"Restarting the proposal"<<endl;
 			//Since we got all NACK, it means over proposal number was lowest, no meaning of accept phase
 			continue;
 		}
@@ -605,11 +631,11 @@ propose (command_t *orig_cmd, int propose_index) {
 		// Modify, datatype, proposal number
 
 		temp_cmd->mp_req_type =  ACCEPT;
-		temp_cmd->accepted_proposal.proposal_client_id = orig_cmd->accepted_proposal.proposal_client_id;
-		temp_cmd->accepted_proposal.proposal_num = orig_cmd->accepted_proposal.proposal_num;
+		temp_cmd->accepted_proposal->proposal_client_id = orig_cmd->accepted_proposal->proposal_client_id;
+		temp_cmd->accepted_proposal->proposal_num = orig_cmd->accepted_proposal->proposal_num;
 		sent_cmd = temp_cmd;
 		#ifdef DEBUG_FLAG
-			cout<<"---------------------------------";
+			cout<<"---------------------------------"<<endl;
 			cout<<"ACCEPT phase starting"<<endl;
 		#endif
 		promise<vector<command_t*>> pm1 =  promise<vector<command_t*>>();
@@ -619,7 +645,7 @@ propose (command_t *orig_cmd, int propose_index) {
 		vec_c_resp = fu1.get();
 		#ifdef DEBUG_FLAG
 			cout<<"ACCEPT phase completed"<<endl;
-			cout<<"---------------------------------";
+			cout<<"---------------------------------"<<endl;
 		#endif
 
 		temp_cmd = get_highest_accepted_proposal (vec_c_resp, 0);
@@ -630,9 +656,15 @@ propose (command_t *orig_cmd, int propose_index) {
 			cout<<"Proposal got accpeted" <<endl;
 			break;
 		} else {
-			orig_cmd->accepted_proposal.proposal_num = temp_cmd->accepted_proposal.proposal_num + serverlist_size;
+			cout<< "Server list size:" <<serverlist_size <<endl;
+			orig_cmd->accepted_proposal->proposal_num = temp_cmd->accepted_proposal->proposal_num;
+			cout<<"Proposal got REJECTED, Retrying with this proposal_num:"<< orig_cmd->accepted_proposal->proposal_num<<endl;
 			delete_command_t(temp_cmd);
+			if(sent_cmd->command_id != orig_cmd->command_id) {
+				delete_command_t(sent_cmd);
+			}
 			temp_cmd = orig_cmd;
+			cout<<"Proposal got REJECTED, Retrying with this proposal_num:"<< temp_cmd->accepted_proposal->proposal_num<<endl;
 		}
 
 	}
@@ -640,6 +672,7 @@ propose (command_t *orig_cmd, int propose_index) {
 }
 // This function implements multipaxos 
 uint32_t insert_command(const KeyStoreRequest  *req) {
+	cout<<"Inside insert command" <<endl;
 	command_t *orig_cmd = get_new_alloc_command(req->clientid(), 0);
 
 	fill_command_from_request_t(req, &orig_cmd);
@@ -647,7 +680,11 @@ uint32_t insert_command(const KeyStoreRequest  *req) {
 
 	command_t *temp_cmd = orig_cmd; // Intially temperory command is equal to original command
 	commands_list_t *cl =  NULL;
+	command_t *local_cmd = NULL;
+
+	//cout<<"Before lock log_map_mutex" <<endl;
 	log_map_mutex.lock();
+	cout<<"After lock log_map_mutex" <<endl;
 	if (log_map.find(string(orig_cmd->key)) != log_map.end()){
 		cl =  log_map.find(string(orig_cmd->key))->second;
 		curr_idx = *(cl->next_available_slot.begin());
@@ -656,10 +693,12 @@ uint32_t insert_command(const KeyStoreRequest  *req) {
 		cl->cmd_vec.reserve(INIT_COMMAND_LENGTH); 
 		for (int i = 0; i < INIT_COMMAND_LENGTH; i++ ) {
 			command_t *cmd = new command_t;
-			cmd->min_proposal_num.proposal_client_id = -1;
-			cmd->min_proposal_num.proposal_num = -1;
-			cmd->accepted_proposal.proposal_client_id = -1;
-			cmd->accepted_proposal.proposal_num = -1;
+			cmd->accepted_proposal =  new proposal_t;
+			cmd->min_proposal_num =  new proposal_t;
+			cmd->min_proposal_num->proposal_client_id = -1;
+			cmd->min_proposal_num->proposal_num = -1;
+			cmd->accepted_proposal->proposal_client_id = -1;
+			cmd->accepted_proposal->proposal_num = -1;
 			cmd->key_sz = 0;
 			cmd->key = NULL;
 			cmd->value_sz = 0;
@@ -671,36 +710,65 @@ uint32_t insert_command(const KeyStoreRequest  *req) {
 		}
 		cl->last_touched_index = -1;
 		curr_idx =  *(cl->next_available_slot.begin());
+		
 		//cl->cmd_vec[curr_idx] = cmd;
 		
 	}
+	#ifdef DEBUG_FLAG
+		cout<<"First empty index :" << curr_idx<<endl;
+	#endif
 	log_map[string(orig_cmd->key)] = cl;
 	log_map_mutex.unlock();
+	orig_cmd->index = curr_idx;
+	//cout<<"after unlock log_map_mutex" <<endl;
 
 	//temp_cmd->command_id =  cmd->command_id;
 	// Multi Paxos
 	while (1) {
-		 temp_cmd = propose (orig_cmd, curr_idx);
+		 temp_cmd = propose (orig_cmd);
 
 		log_map_mutex.lock();
-		if( orig_cmd->command_id == temp_cmd->command_id) {
+		if( orig_cmd->command_id == temp_cmd->command_id ) {
+			bool update = false;
 			#ifdef DEBUG_FLAG
 				cout<<" MP: value is been accepted by other nodes  at index: " << curr_idx<<endl;
 			#endif
-			delete_command_t(cl->cmd_vec[curr_idx]);
-			cl->cmd_vec[curr_idx] = orig_cmd;
-			cl->next_available_slot.erase(curr_idx);
-			cl->last_touched_index = curr_idx;
-			break;
+			local_cmd = cl->cmd_vec[curr_idx];
+			if (temp_cmd->accepted_proposal->proposal_num == local_cmd->min_proposal_num->proposal_num && 
+				temp_cmd->accepted_proposal->proposal_client_id == local_cmd->min_proposal_num->proposal_client_id) {
+				update = true;
+			}
+			delete_command_t(temp_cmd);
+			if(update) {
+				cout<<"Finally updating local copy"<<endl;
+				cout<< "local value: min_client_id : "<< local_cmd->min_proposal_num->proposal_client_id<<" proposal num: "<< local_cmd->min_proposal_num->proposal_num<<endl;
+				
+				orig_cmd->min_proposal_num->proposal_client_id = local_cmd->min_proposal_num->proposal_client_id; //temp_cmd to use but it is deleted
+				orig_cmd->min_proposal_num->proposal_num = local_cmd->min_proposal_num->proposal_num;
+				delete_command_t(cl->cmd_vec[curr_idx]);
+				cl->cmd_vec[curr_idx] = orig_cmd;
+				cl->next_available_slot.erase(curr_idx);
+				cl->last_touched_index = curr_idx;
+				log_map_mutex.unlock();
+				break;
+			} else {
+				cout<<"In mean time, We have seen bigger proposal number so dont overwrite,"<<endl;
+				orig_cmd->accepted_proposal->proposal_num = local_cmd->min_proposal_num->proposal_num + 1;
+				temp_cmd = orig_cmd;
+			}
+			
 		} else {
 			#ifdef DEBUG_FLAG
 				cout<<" MP: value is defeated by other nodes at index: "<< curr_idx<<endl;
 			#endif
 			delete_command_t(cl->cmd_vec[curr_idx]);
 			cl->cmd_vec[curr_idx] = temp_cmd;
-			curr_idx = *(cl->next_available_slot.begin());
-			cl->next_available_slot.erase(curr_idx);
 			cl->last_touched_index = curr_idx;
+			cl->next_available_slot.erase(curr_idx);
+			curr_idx = *(cl->next_available_slot.begin());
+			orig_cmd->index = curr_idx;
+			orig_cmd->accepted_proposal->proposal_num = 0; // Clear previous index proposals
+			orig_cmd->min_proposal_num->proposal_num = 0;	
 		}
 		log_map_mutex.unlock();
 	}

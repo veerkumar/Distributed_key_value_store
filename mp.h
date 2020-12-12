@@ -46,14 +46,14 @@ typedef struct command {
   uint32_t key_sz;
   char *value;
   uint32_t value_sz;
-  proposal_t min_proposal_num;
-  proposal_t accepted_proposal;
+  proposal_t *min_proposal_num;
+  proposal_t *accepted_proposal;
 } command_t;
 
 
 typedef struct commands 
 {
-	set<int, greater<int>> next_available_slot;
+	set<int> next_available_slot;
 	std::vector<command_t*> cmd_vec;
 	int last_touched_index;
 } commands_list_t;
@@ -139,6 +139,7 @@ extern mp_server_connections *mp_connection_obj;
 extern mutex log_map_mutex;
 extern map<string, commands_list_t*> log_map;
 extern mutex mp_mutex;
+extern mutex printing_mutex;
 
 
 

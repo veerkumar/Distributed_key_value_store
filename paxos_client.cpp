@@ -42,7 +42,7 @@ make_mp_request_payload (PaxosRequest *payload, command_t* c_req) {
 		case ACCEPT:
 			payload->set_mptype( PaxosRequest::ACCEPT); break;
 		default:
-			cout<<"get_ctype: wrong command type ";	
+			cout<<"Unknown mp_req_type "<<endl;	
 	}
 	
 
@@ -52,7 +52,7 @@ make_mp_request_payload (PaxosRequest *payload, command_t* c_req) {
 		case WRITE:
 			payload->set_commandtype( PaxosRequest::WRITE); break;
 		default:
-			cout<<"get_ctype: wrong command type ";	
+			cout<<"Unknown command type "<<endl;	
 	}
 	
 	
@@ -64,8 +64,8 @@ make_mp_request_payload (PaxosRequest *payload, command_t* c_req) {
 		payload->set_value(c_req->value,c_req->value_sz);
 		payload->set_valuesz(c_req->value_sz);
 	}
-	payload->set_proposalclientid(c_req->accepted_proposal.proposal_client_id);
-	payload->set_proposalnum(c_req->accepted_proposal.proposal_num);
+	payload->set_proposalclientid(c_req->accepted_proposal->proposal_client_id);
+	payload->set_proposalnum(c_req->accepted_proposal->proposal_num);
 	payload->set_index(c_req->index);
 	payload->set_commandid(c_req->command_id);
 }
@@ -74,6 +74,8 @@ command_t*
 extract_response_from_payload(PaxosResponse *Response) {
 	command_t *c_response = new command_t;
 	c_response->code = get_c_return_code(Response->code());
+	//c_response->mp_req_type = get_c_mp_req_type(Response->mptype());
+	c_response->command_type = get_c_command_type(Response->commandtype());
 	if (Response->keysz()) {
 		// #ifdef DEBUG_FLAG
 		// 	cout<<"	"<<__func__<<"Response key size= "<<Response->key().size();
@@ -100,13 +102,17 @@ extract_response_from_payload(PaxosResponse *Response) {
 		// #ifdef DEBUG_FLAG
 		// 		cout<<__func__<<"Response value after mem_cpy = "<<c_response->value<<endl;
 		// #endif
+	} else {
+		cout<<"received value size 0"<<endl;
 	}
 	c_response->value_sz = Response->valuesz();
+	c_response->min_proposal_num = new proposal_t;
+	c_response->accepted_proposal = new proposal_t;
 
-	c_response->min_proposal_num.proposal_client_id = Response->proposalclientid();
-	c_response->min_proposal_num.proposal_num = Response->proposalnum();
-	c_response->accepted_proposal.proposal_client_id = Response->proposalclientid();
-	c_response->accepted_proposal.proposal_num = Response->proposalnum();
+	c_response->min_proposal_num->proposal_client_id = Response->proposalclientid();
+	c_response->min_proposal_num->proposal_num = Response->proposalnum();
+	c_response->accepted_proposal->proposal_client_id = Response->proposalclientid();
+	c_response->accepted_proposal->proposal_num = Response->proposalnum();
 	c_response->command_id = Response->commandid();
 	c_response->index = Response->index();
 
@@ -142,9 +148,7 @@ send_to_mp_server_handler(mp_client* connection_stub,
 }
 
 void send_message_to_all_mp_server(promise<vector<command_t*>>& prom,  command_t *c_req) {
-	#ifdef DEBUG_FLAG
-		print_command_t(c_req,1);
-	#endif
+	
 	PaxosRequest ReqPayload;
 	uint32_t number_of_servers =  mp_connection_obj->connections.size();
 	int majority = ((number_of_servers+1)/2), num_resp_collected = 0;
@@ -156,7 +160,10 @@ void send_message_to_all_mp_server(promise<vector<command_t*>>& prom,  command_t
 	std::vector<std::thread*> threads;
 
 	make_mp_request_payload(&ReqPayload, c_req);
+	if(c_req->command_id == 0){
+	cout<<"command was 0"<<endl;}
 	#ifdef DEBUG_FLAG
+		cout<<__func__<< ": ";
 		print_command_t(c_req, 1);
 	#endif
 	int i = 0;

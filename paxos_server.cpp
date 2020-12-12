@@ -15,6 +15,7 @@ extern mutex mp_mutex;
 void 
 print_current_log_db_state() {
 	//log_map_mutex.lock();
+	//printing_mutex.lock();
 	cout<<"====================================================" <<endl;
 	cout<<"Printing Key Store state:"<<endl;
 	cout<<"----------------------------------------------" <<endl;
@@ -35,13 +36,18 @@ print_current_log_db_state() {
 			if((log_it)->second->last_touched_index < i){
 				break;
 			}
-			print_command_t (*it, 1);
+			cout<<"\n log_printing: ";print_command_t (*it, 1);
 			i++;
+			// if( i >=10) {
+			// 	cout<<"Looks like infinite loop, touched index was :"<<(log_it)->second->last_touched_index <<endl;
+			// 	break;
+			// }
 		}
 	}
 
 	//log_map_mutex.unlock();
 	cout<<"====================================================" <<endl;
+	//printing_mutex.unlock();
 }
 
 command_t*
@@ -78,9 +84,12 @@ extract_request_payload_to_command_t(const PaxosRequest* request) {
 		// #endif
 	}
 	c_req->value_sz = request->valuesz();
-
-	c_req->accepted_proposal.proposal_client_id = request->proposalclientid();
-	c_req->accepted_proposal.proposal_num = request->proposalnum();
+	c_req->accepted_proposal =  new proposal_t;
+	c_req->min_proposal_num =  new proposal_t;
+	c_req->min_proposal_num->proposal_client_id = -1;
+	c_req->min_proposal_num->proposal_num = -1;
+	c_req->accepted_proposal->proposal_client_id = request->proposalclientid();
+	c_req->accepted_proposal->proposal_num = request->proposalnum();
 	c_req->command_id = request->commandid();
 	c_req->index = request->index();
 
@@ -105,6 +114,7 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 
 	c_req = extract_request_payload_to_command_t(request);
 	#ifdef DEBUG_FLAG
+		cout<<"\n"<<__func__<< ": ";
 		print_command_t(c_req, 1);
 	#endif
 	commands_list_t *cl =  NULL;
@@ -125,10 +135,12 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 		cl->cmd_vec.reserve(INIT_COMMAND_LENGTH); 
 		for (int i = 0; i < INIT_COMMAND_LENGTH; i++ ) {
 			command_t *cmd = new command_t;
-			cmd->min_proposal_num.proposal_client_id = -1;
-			cmd->min_proposal_num.proposal_num = -1;
-			cmd->accepted_proposal.proposal_client_id = -1;
-			cmd->accepted_proposal.proposal_num = -1;
+			cmd->min_proposal_num = new proposal_t; 
+			cmd->accepted_proposal = new proposal_t; 
+			cmd->min_proposal_num->proposal_client_id = -1;
+			cmd->min_proposal_num->proposal_num = -1;
+			cmd->accepted_proposal->proposal_client_id = -1;
+			cmd->accepted_proposal->proposal_num = -1;
 			cmd->key_sz = 0;
 			cmd->key = NULL;
 			cmd->value_sz = 0;
@@ -149,25 +161,27 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 	if(c_req->mp_req_type ==  PREPARE) {
 		bool update = false;
 		#ifdef DEBUG_FLAG
-			cout<< "Prepare request from client_id: "<< c_req->accepted_proposal.proposal_client_id<<endl;
+			cout<< "Prepare request from client_id: "<< c_req->accepted_proposal->proposal_client_id<<endl;
 		#endif
-			if (c_req->accepted_proposal.proposal_num > cmd->min_proposal_num.proposal_num ) {
+			if (c_req->accepted_proposal->proposal_num > cmd->min_proposal_num->proposal_num ) {
 				update = true;
 			}
-			if (c_req->accepted_proposal.proposal_num == cmd->min_proposal_num.proposal_num) {
-				if (c_req->accepted_proposal.proposal_client_id > cmd->min_proposal_num.proposal_client_id ) {
+			if (c_req->accepted_proposal->proposal_num == cmd->min_proposal_num->proposal_num) {
+				if (c_req->accepted_proposal->proposal_client_id > cmd->min_proposal_num->proposal_client_id ) {
 					update = true;
 				}
 			}
 			
 			if (update) {
-				cmd->min_proposal_num.proposal_client_id = c_req->accepted_proposal.proposal_client_id;
-				cmd->min_proposal_num.proposal_num = c_req->accepted_proposal.proposal_num;
+				cmd->min_proposal_num->proposal_client_id = c_req->accepted_proposal->proposal_client_id;
+				cmd->min_proposal_num->proposal_num = c_req->accepted_proposal->proposal_num;
 				reply->set_code(PaxosResponse::ACK);
 
-				reply->set_proposalclientid(cmd->accepted_proposal.proposal_client_id);
-				reply->set_proposalnum(cmd->accepted_proposal.proposal_num);
-				
+				reply->set_proposalclientid(cmd->accepted_proposal->proposal_client_id);
+				reply->set_proposalnum(cmd->accepted_proposal->proposal_num);
+				if (cmd->command_id == 0) {
+					cout<<"***********Setting command_id  as 0 in prepare phase _server side******"<<endl;
+				}
 				reply->set_commandid(cmd->command_id);
 
 				switch (c_req->command_type) {
@@ -184,29 +198,35 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 				reply->set_valuesz(cmd->value_sz);
 				reply->set_value(cmd->value, cmd->value_sz);
 			} else {
+				cout<<"sending back NACK";
 				reply->set_code(PaxosResponse::NACK);
-				reply->set_proposalclientid(cmd->min_proposal_num.proposal_client_id);
-				reply->set_proposalnum(cmd->min_proposal_num.proposal_num);
+				reply->set_proposalclientid(cmd->min_proposal_num->proposal_client_id);
+				reply->set_proposalnum(cmd->min_proposal_num->proposal_num);
 			}
-			cout<<"Prepare phase"<<endl;
+			cout<<"Prepare request completed"<<endl;
 			cl->last_touched_index = c_req->index;
 			print_current_log_db_state();
 
 	} else {
 		bool update = false;
 		#ifdef DEBUG_FLAG
-			cout<< "Accept request from client_id: "<< c_req->accepted_proposal.proposal_client_id<<endl;
+			cout<< "Accept request from client_id: "<< c_req->accepted_proposal->proposal_client_id<<endl;
+			cout<< "local value: min_client_id : "<< cmd->min_proposal_num->proposal_client_id<<" proposal num: "<< cmd->min_proposal_num->proposal_num<<endl;
+			cout<< "Recevied value: min_client_id : "<< c_req->accepted_proposal->proposal_client_id<<" proposal num: "<< c_req->accepted_proposal->proposal_num<<endl;
 		#endif
-			if (c_req->accepted_proposal.proposal_num >= cmd->min_proposal_num.proposal_num ) {
+			if (c_req->accepted_proposal->proposal_num >= cmd->min_proposal_num->proposal_num ) {
 				update = true;
 			}
-			if (c_req->accepted_proposal.proposal_num == cmd->min_proposal_num.proposal_num) {
-				if (c_req->accepted_proposal.proposal_client_id >= cmd->min_proposal_num.proposal_client_id ) {
+			if (c_req->accepted_proposal->proposal_num == cmd->min_proposal_num->proposal_num) {
+				if (c_req->accepted_proposal->proposal_client_id >= cmd->min_proposal_num->proposal_client_id ) {
 					update = true;
 				}
 			}
 
 			if(update) {
+				if (c_req->command_id == 0) {
+					cout<<"***********got command_id  as 0 in ACCEPT phase _server side******"<<endl;
+				}
 				cmd->command_type = c_req->command_type;
 				cmd->command_id = c_req->command_id;
 				cmd->index = c_req->index;
@@ -223,10 +243,10 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 				memcpy(cmd->value, c_req->value, c_req->value_sz);
 				cmd->value_sz = c_req->value_sz;
 
-				cmd->min_proposal_num.proposal_client_id = c_req->accepted_proposal.proposal_client_id;
-				cmd->min_proposal_num.proposal_num = c_req->accepted_proposal.proposal_num;
-				cmd->accepted_proposal.proposal_client_id = c_req->accepted_proposal.proposal_client_id;
-				cmd->accepted_proposal.proposal_num = c_req->accepted_proposal.proposal_num;
+				cmd->min_proposal_num->proposal_client_id = c_req->accepted_proposal->proposal_client_id;
+				cmd->min_proposal_num->proposal_num = c_req->accepted_proposal->proposal_num;
+				cmd->accepted_proposal->proposal_client_id = c_req->accepted_proposal->proposal_client_id;
+				cmd->accepted_proposal->proposal_num = c_req->accepted_proposal->proposal_num;
 
 				mp_ks_map_mutex.lock();
 				if(apply_last_write(string(cmd->key),c_req->index)) {
@@ -237,8 +257,8 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 				reply->set_code(PaxosResponse::ACK);
 				
 
-				reply->set_proposalclientid(cmd->accepted_proposal.proposal_client_id);
-				reply->set_proposalnum(cmd->accepted_proposal.proposal_num);
+				reply->set_proposalclientid(cmd->accepted_proposal->proposal_client_id);
+				reply->set_proposalnum(cmd->accepted_proposal->proposal_num);
 				
 				reply->set_commandid(cmd->command_id);
 				switch (c_req->command_type) {
@@ -251,18 +271,21 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 				}
 				
 				reply->set_index(cmd->index);
-				reply->set_keysz(0);
-				reply->set_key(c_req->key,0);
-				reply->set_valuesz(0);
-				reply->set_value(c_req->value,0);
+				reply->set_keysz(cmd->key_sz);
+				reply->set_key(c_req->key,cmd->key_sz);
+				reply->set_valuesz(cmd->value_sz);
+				reply->set_value(c_req->value,cmd->value_sz);
 				cl->next_available_slot.erase(c_req->index);
 				
 			} else {
+				cout<<"Accpet request processing, sending NACK"<<endl;
 				reply->set_code(PaxosResponse::NACK);
-				reply->set_proposalclientid(cmd->min_proposal_num.proposal_client_id);
-				reply->set_proposalnum(cmd->min_proposal_num.proposal_num);
+				reply->set_keysz(0);
+				reply->set_valuesz(0);
+				reply->set_proposalclientid(cmd->min_proposal_num->proposal_client_id);
+				reply->set_proposalnum(cmd->min_proposal_num->proposal_num);
 			}
-			cout<<"ACCEPT phase"<<endl;
+			cout<<"ACCEPT request completed"<<endl;
 			print_current_log_db_state();
 	}
 
@@ -336,7 +359,7 @@ void print_mp_req_type(mp_request_type type) {
 		case ACCEPT:
 			cout<< "ACCEPT"<<endl; break;
 		default:
-			cout<<"get_ctype: wrong command type ";	
+			cout<< "Unknown"<< endl;
 	}
 }
 void print_command_type (request_type type) {
@@ -367,6 +390,7 @@ print_return_code(return_code type) {
 }
 void 
 print_command_t(command_t *req, bool request) {
+	//printing_mutex.lock();
 	cout<< " Printing MP request" <<endl;
 	if(request)
 	 { cout<<" 	mp_request_type  :" ;
@@ -378,11 +402,11 @@ print_command_t(command_t *req, bool request) {
 	cout<<" 	command_type  	 :" ; print_command_type(req->command_type);
 	cout<<" 	Index  	 :" << (req->index)<<endl;
 	cout<<" 	min_proposal_num :" <<endl;
-	cout<<"	 		client_id  :"<<req->min_proposal_num.proposal_client_id<<endl;
-	cout<<"	 		proposal_num :"<<req->min_proposal_num.proposal_client_id<<endl;
+	cout<<"	 		client_id  :"<<req->min_proposal_num->proposal_client_id<<endl;
+	cout<<"	 		proposal_num :"<<req->min_proposal_num->proposal_num<<endl;
 	cout<<" 	accepted_proposal:" <<endl;
-	cout<<"	 		client_id  :"<<req->accepted_proposal.proposal_client_id<<endl;
-	cout<<"	 		proposal_num :"<<req->accepted_proposal.proposal_client_id<<endl;
+	cout<<"	 		client_id  :"<<req->accepted_proposal->proposal_client_id<<endl;
+	cout<<"	 		proposal_num :"<<req->accepted_proposal->proposal_num<<endl;
 	cout<<" 	command_id 		 :"<<req->command_id<<endl;
 	if(req->key_sz)
 	{cout<<" 	key      		 :"<<req->key<<endl;}
@@ -390,7 +414,7 @@ print_command_t(command_t *req, bool request) {
 	if(req->value_sz)
 	{cout<<" 	value   		 :"<<req->value<<endl;}
 	cout<<" 	value_sz		 :"<<req->value_sz<<endl;
-	
+	//printing_mutex.unlock();
 }
 
 
