@@ -179,9 +179,7 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 
 				reply->set_proposalclientid(cmd->accepted_proposal->proposal_client_id);
 				reply->set_proposalnum(cmd->accepted_proposal->proposal_num);
-				if (cmd->command_id == 0) {
-					cout<<"***********Setting command_id  as 0 in prepare phase _server side******"<<endl;
-				}
+				
 				reply->set_commandid(cmd->command_id);
 
 				switch (c_req->command_type) {
@@ -190,7 +188,7 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 					case WRITE:
 						 reply->set_commandtype(PaxosResponse::WRITE); break;
 					default:
-						cout<<"get_ctype: wrong command type "<<endl;	
+						cout<<"Unknown command type "<<endl;	
 				}
 				reply->set_index(cmd->index);
 				reply->set_keysz(cmd->key_sz);
@@ -198,12 +196,16 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 				reply->set_valuesz(cmd->value_sz);
 				reply->set_value(cmd->value, cmd->value_sz);
 			} else {
+				#ifdef DEBUG_FLAG
 				cout<<"sending back NACK";
+				#endif
 				reply->set_code(PaxosResponse::NACK);
 				reply->set_proposalclientid(cmd->min_proposal_num->proposal_client_id);
 				reply->set_proposalnum(cmd->min_proposal_num->proposal_num);
 			}
+			#ifdef DEBUG_FLAG
 			cout<<"Prepare request completed"<<endl;
+			#endif
 			cl->last_touched_index = c_req->index;
 			print_current_log_db_state();
 
@@ -224,9 +226,6 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 			}
 
 			if(update) {
-				if (c_req->command_id == 0) {
-					cout<<"***********got command_id  as 0 in ACCEPT phase _server side******"<<endl;
-				}
 				cmd->command_type = c_req->command_type;
 				cmd->command_id = c_req->command_id;
 				cmd->index = c_req->index;
@@ -250,7 +249,9 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 
 				mp_ks_map_mutex.lock();
 				if(apply_last_write(string(cmd->key),c_req->index)) {
+					#ifdef DEBUG_FLAG
 					cout<<"Applied one write"<<endl;
+					#endif
 				}
 				mp_ks_map_mutex.unlock();
 
@@ -278,14 +279,18 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 				cl->next_available_slot.erase(c_req->index);
 				
 			} else {
+				#ifdef DEBUG_FLAG
 				cout<<"Accpet request processing, sending NACK"<<endl;
+				#endif
 				reply->set_code(PaxosResponse::NACK);
 				reply->set_keysz(0);
 				reply->set_valuesz(0);
 				reply->set_proposalclientid(cmd->min_proposal_num->proposal_client_id);
 				reply->set_proposalnum(cmd->min_proposal_num->proposal_num);
 			}
+			#ifdef DEBUG_FLAG
 			cout<<"ACCEPT request completed"<<endl;
+			#endif
 			print_current_log_db_state();
 	}
 

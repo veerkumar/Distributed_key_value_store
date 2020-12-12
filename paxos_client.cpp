@@ -102,9 +102,7 @@ extract_response_from_payload(PaxosResponse *Response) {
 		// #ifdef DEBUG_FLAG
 		// 		cout<<__func__<<"Response value after mem_cpy = "<<c_response->value<<endl;
 		// #endif
-	} else {
-		cout<<"received value size 0"<<endl;
-	}
+	} 
 	c_response->value_sz = Response->valuesz();
 	c_response->min_proposal_num = new proposal_t;
 	c_response->accepted_proposal = new proposal_t;
@@ -160,8 +158,6 @@ void send_message_to_all_mp_server(promise<vector<command_t*>>& prom,  command_t
 	std::vector<std::thread*> threads;
 
 	make_mp_request_payload(&ReqPayload, c_req);
-	if(c_req->command_id == 0){
-	cout<<"command was 0"<<endl;}
 	#ifdef DEBUG_FLAG
 		cout<<__func__<< ": ";
 		print_command_t(c_req, 1);
