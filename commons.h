@@ -35,7 +35,8 @@
 //#define DEBUG_FLAG 1
 //#define DEBUG_LOG_QUEUE 1
 
-#define INTERFACE "lo"
+//#define INTERFACE "lo"
+#define INTERFACE "ens4"
 
 #define SIZE_OF_VALUE  1024
 
