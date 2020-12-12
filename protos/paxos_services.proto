@@ -21,8 +21,8 @@ message PaxosRequest {
   }
   RequestType mptype = 1;
   CommandType commandType = 2;
-  uint32 proposalClientId = 3;
-  uint32 proposalNum = 4;
+  int32 proposalClientId = 3;
+  int32 proposalNum = 4;
   bytes key = 5;
   uint32 keySz = 6;
   bytes  value = 7;         

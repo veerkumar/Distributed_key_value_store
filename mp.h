@@ -19,8 +19,8 @@ using grpc::ServerContext;
 using grpc::Status;
 
 typedef struct proposal {
-	uint32_t proposal_client_id;
-	uint32_t proposal_num;
+	int32_t proposal_client_id;
+	int32_t proposal_num;
 } proposal_t;
 
 enum current_status
@@ -36,7 +36,7 @@ enum mp_request_type {
 };
 
 
-type_def struct command {
+typedef struct command {
   mp_request_type mp_req_type;
   request_type command_type; // READ or WRITE
   return_code code ;
@@ -51,14 +51,14 @@ type_def struct command {
 } command_t;
 
 
-type_def struct commands 
+typedef struct commands 
 {
 	set<int, greater<int>> next_available_slot;
 	std::vector<command_t*> cmd_vec;
-	int last_applied_index;
+	int last_touched_index;
 } commands_list_t;
 
-class mp_service_impl: public Paxos::Service {
+class mp_service_impl: public PaxosService::Service {
 	Status PaxosRequestHandler (ServerContext* context, const  PaxosRequest* request,
 			PaxosResponse* reply);
 };
@@ -83,20 +83,38 @@ class mp_server_connections {
 };
 
 
-void print_command_t(command_t *req, bool request)
+void print_command_t(command_t *req, bool request);
 
-return_code
-get_c_return_code(PaxosResponse::ReturnCode type)
+return_code get_c_return_code(PaxosResponse::ReturnCode type);
 
 void
-make_mp_request_payload(PaxosRequest* payload, mp_message_request_t *mp_req);
+make_mp_request_payload(PaxosRequest* payload, command_t *mp_req);
 
 void RunMPServer(string server_address);
 
-void send_to_mp_server_handler(mp_client* connection_stub, PaxosRequest *req);
+void send_to_mp_server_handler(mp_client* connection_stub, 
+				promise<command_t*>&& paxosResponsePromise, PaxosRequest *req);
 
-void send_message_to_all_mp_server(promise<string>& prom,  mp_message_request_t *c_req);
+void send_message_to_all_mp_server(promise<vector<command_t*>>& prom,  command_t *c_req);
 
+return_code get_c_return_code(PaxosResponse::ReturnCode type);
+
+request_type get_c_command_type(PaxosResponse::CommandType type);
+request_type get_c_command_type(PaxosRequest::CommandType type);
+
+mp_request_type get_c_mp_req_type(PaxosRequest::RequestType type);
+
+
+void print_mp_req_type(mp_request_type type);
+void print_command_type (request_type type);
+void
+print_return_code(return_code type);
+
+void 
+print_command_t(command_t *req, bool request);
+
+
+void print_current_log_db_state();
 
 extern mutex abd_ks_map_mutex;
 extern map<string,value_t*> abd_ks_map;
@@ -104,11 +122,6 @@ extern map<string,value_t*> abd_ks_map;
 extern mutex cm_ks_map_mutex;
 extern map<string,value_t*> cm_ks_map;
 
-extern mutex cm_pq_mutex;
-extern priority_queue <cm_message_request_t*, vector<cm_message_request_t*>, vectclk_comparator > cm_message_pq;
-
-extern mutex cm_outque_mutex;
-extern std::queue<cm_message_request_t* > cm_message_outqueue;
 
 extern mutex cm_t_mutex;
 extern int *t;
@@ -116,7 +129,7 @@ extern int serverlist_size;
 
 extern int mynodenumber;
 
-extern cm_server_connections *cm_connection_obj;
+
 
 extern mutex mp_ks_map_mutex;
 extern map<string,value_t*> mp_ks_map;
@@ -124,8 +137,10 @@ extern map<string,value_t*> mp_ks_map;
 extern mp_server_connections *mp_connection_obj;
 
 extern mutex log_map_mutex;
-extern map<string, vector<commands_list_t*>> log_map;
+extern map<string, commands_list_t*> log_map;
 extern mutex mp_mutex;
+
+
 
 
 #endif //MP_H

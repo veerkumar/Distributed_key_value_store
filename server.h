@@ -13,6 +13,7 @@ using KeyStore::KeyStoreService;
 
 void
 delete_cm_request_t(cm_message_request_t* cm_req);
+uint32_t insert_command(const KeyStoreRequest  *req);
 
 
 extern mutex abd_ks_map_mutex;

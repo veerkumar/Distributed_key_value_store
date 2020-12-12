@@ -415,7 +415,7 @@ int put(const struct Client* c, const char* key, uint32_t key_size,
 		request_t *c_req = new request_t;
 		c_req->type = WRITE;
 		c_req->protocol = MP;
-		c_req->tag.integer = 0; // Since query will fetch the integer
+		c_req->tag.integer = 0; 
 		c_req->tag.client_id = c->id;
 		c_req->key = new char[key_size+1];
 		memset(c_req->key, 0, key_size+1);
@@ -557,7 +557,7 @@ int get(const struct Client* c, const char* key, uint32_t key_size,
 		request_t *c_req = new request_t;
 		c_req->type = READ;
 		c_req->protocol = MP;
-		c_req->tag.integer = 0; // Since query will fetch the integer
+		c_req->tag.integer = 0; 
 		c_req->tag.client_id = c->id;
 		c_req->key = new char[key_size+1];
 		memset(c_req->key, 0, key_size+1);

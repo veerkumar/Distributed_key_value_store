@@ -32,7 +32,7 @@
 #include <grpcpp/create_channel.h>
 //#include <grpcpp/security/credentials.h>
 
-//#define DEBUG_FLAG 0
+#define DEBUG_FLAG 1
 
 #define INTERFACE "lo"
 
@@ -60,7 +60,7 @@ enum return_code {
             ERROR = 1,
             OK = 2,
             NACK = 3,
-            SOME_NACK = 4;
+            SOME_NACK = 4
 };
 
 enum protocol_type {
@@ -144,9 +144,9 @@ typedef struct cm_message_response_ {
 
 
 
-extern int get_random_number ();
+extern uint32_t get_random_number ();
 
-bool apply_last_write(string key, int index)
+bool apply_last_write(string key, uint32_t index);
 
 
 
