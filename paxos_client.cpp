@@ -9,11 +9,12 @@ mp_server_connections::mp_server_connections(vector<string> server_list, int myl
 	/* Create connection with all servers */
 	for (int i = 0; i < int(server_list.size()); i++) {
 		if(i!= mylocation) {
-			std::string port = server_list[i].substr(server_list[i].find(delimiter)+1, server_list[i].length());
-			key = get_ipaddr() + port;
-			#ifdef DEBUG_FLAG
+			//std::string port = server_list[i].substr(server_list[i].find(delimiter)+1, server_list[i].length());
+			//key = get_ipaddr() + port;
+			key = server_list[i];
+			//#ifdef DEBUG_FLAG
 				cout<<"\n\n"<<__func__ <<": Creating new connection with file server :"<< key <<endl;
-			#endif
+			//#endif
 			connections[server_list[i]] = new mp_client(grpc::CreateChannel(key, 
 											grpc::InsecureChannelCredentials()));
 		} else {
