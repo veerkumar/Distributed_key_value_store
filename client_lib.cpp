@@ -127,39 +127,39 @@ extract_response_from_payload(KeyStoreResponse *Response, KeyStoreRequest req, b
 
 	
 	if (overide_key) {
-		#ifdef DEBUG_FLAG
-			cout<<"	"<<__func__<<"Response key size= "<<Response->key().size();
-			cout<<"	"<<__func__<<"Response key received = "<<Response->key();
-		#endif
+		// #ifdef DEBUG_FLAG
+		// 	cout<<"	"<<__func__<<"Response key size= "<<Response->key().size();
+		// 	cout<<"	"<<__func__<<"Response key received = "<<Response->key();
+		// #endif
 		c_response->key = new char[Response->keysz()+1];
 		memset(c_response->key, 0, Response->keysz()+1);
 		memcpy(c_response->key, Response->key().c_str(), Response->keysz());
-		#ifdef DEBUG_FLAG
-			cout<<"	"<<__func__<<"Response after mem_cpy = "<<c_response->key;
-		#endif
+		// #ifdef DEBUG_FLAG
+		// 	cout<<"	"<<__func__<<"Response after mem_cpy = "<<c_response->key;
+		// #endif
 	} else {
-		#ifdef DEBUG_FLAG
-			cout<<"	"<<__func__<<"\tResponse key received = "<<req.key()<<endl;
-		#endif
+		// #ifdef DEBUG_FLAG
+		// 	cout<<"	"<<__func__<<"\tResponse key received = "<<req.key()<<endl;
+		// #endif
 		c_response->key = new char[req.keysz()+1];
 		memset(c_response->key, 0, req.keysz()+1);
 		memcpy(c_response->key, req.key().c_str(), req.keysz());
-		#ifdef DEBUG_FLAG
-			cout<<"	"<<__func__<<"\tResponse after mem_cpy = "<<c_response->key<<endl;
-		#endif
+		// #ifdef DEBUG_FLAG
+		// 	cout<<"	"<<__func__<<"\tResponse after mem_cpy = "<<c_response->key<<endl;
+		// #endif
 	}
 	c_response->key_sz = Response->keysz();
 	if(Response->valuesz()) {
-		#ifdef DEBUG_FLAG
-			cout<<"	"<<__func__<<"Response value size= "<<Response->value().size()<<endl;
-			cout<<"	"<<__func__<<"Response value received = "<<Response->value()<<endl;
-		#endif
+		// #ifdef DEBUG_FLAG
+		// 	cout<<"	"<<__func__<<"Response value size= "<<Response->value().size()<<endl;
+		// 	cout<<"	"<<__func__<<"Response value received = "<<Response->value()<<endl;
+		// #endif
 		c_response->value = new char[Response->valuesz()+1];
 		memset(c_response->value, 0, Response->valuesz()+1);
 		memcpy(c_response->value, Response->value().c_str(), Response->valuesz());
-		#ifdef DEBUG_FLAG
-				cout<<__func__<<"Response value after mem_cpy = "<<c_response->value<<endl;
-		#endif
+		// #ifdef DEBUG_FLAG
+		// 		cout<<__func__<<"Response value after mem_cpy = "<<c_response->value<<endl;
+		// #endif
 	} else {
 		#ifdef DEBUG_FLAG
 		cout<<"	Value from server is Invalid/Not_applicable"<<endl;

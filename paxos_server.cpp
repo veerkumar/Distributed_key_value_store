@@ -16,6 +16,7 @@ void
 print_current_log_db_state() {
 	//log_map_mutex.lock();
 	//printing_mutex.lock();
+	#ifdef DEBUG_LOG_QUEUE
 	cout<<"====================================================" <<endl;
 	cout<<"Printing Key Store state:"<<endl;
 	cout<<"----------------------------------------------" <<endl;
@@ -47,6 +48,7 @@ print_current_log_db_state() {
 
 	//log_map_mutex.unlock();
 	cout<<"====================================================" <<endl;
+	#endif
 	//printing_mutex.unlock();
 }
 
@@ -248,7 +250,7 @@ Status mp_service_impl::PaxosRequestHandler (ServerContext* context, const  Paxo
 				cmd->accepted_proposal->proposal_num = c_req->accepted_proposal->proposal_num;
 
 				mp_ks_map_mutex.lock();
-				if(apply_last_write(string(cmd->key),c_req->index)) {
+				if(cmd->command_type == WRITE && apply_last_write(string(cmd->key),c_req->index)) {
 					#ifdef DEBUG_FLAG
 					cout<<"Applied one write"<<endl;
 					#endif

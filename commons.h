@@ -32,15 +32,18 @@
 #include <grpcpp/create_channel.h>
 //#include <grpcpp/security/credentials.h>
 
-#define DEBUG_FLAG 1
+//#define DEBUG_FLAG 1
+//#define DEBUG_LOG_QUEUE 1
 
 #define INTERFACE "lo"
 
-#define SIZE_OF_VALUE  3
+#define SIZE_OF_VALUE  1024
 
-#define ABD_NUMBER_OF_CLIENTS 10
+#define ABD_NUMBER_OF_CLIENTS 3
 
 #define CM_NUMBER_OF_CLIENTS 10
+
+#define MP_NUMBER_OF_CLIENTS 3
 
 #define INT_SIZE sizeof(int)
 
@@ -116,32 +119,6 @@ typedef struct cm_message_request_ {
 typedef struct cm_message_response_ {
   return_code code;
 } cm_message_response_t;
-
-
-
-
-// typedef struct mp_message_request_ {
-//   mp_request_type type;
-//   uint32_t proposal_num;
-//   char* key;
-//   uint32_t key_sz;
-//   char* value;
-//   uint32_t value_sz;
-//   uint32_t index;
-  
-// } mp_message_request_t;
-
-// typedef struct mp_message_response_ {
-//   return_code code;
-//   uint32_t accpeted_num;
-//   char* key;
-//   uint32_t key_sz;
-//   char* value;
-//   uint32_t value_sz;
-//   uint32_t index;
-
-// } mp_message_response_t;
-
 
 
 extern uint32_t get_random_number ();

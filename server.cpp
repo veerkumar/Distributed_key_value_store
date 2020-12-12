@@ -380,7 +380,7 @@ class key_store_service_impl: public KeyStoreService::Service {
 			if (request->type() ==  KeyStoreRequest::READ) {
 
 				#ifdef DEBUG_FLAG
-				std::cout << "Got request type: READ   "<<endl;
+				std::cout << " MP: Got request type: READ   "<<endl;
 				#endif
 				uint32_t index = insert_command(request);
 				/* Fetch the value for the given key and send the response */
@@ -388,10 +388,10 @@ class key_store_service_impl: public KeyStoreService::Service {
 				mp_ks_map_mutex.lock();
 				if(apply_last_write(request->key().c_str(),index)) {
 					/* Found the key */
-					cout<<"Found the key" <<endl;
+					
 					value_t *temp_value_t = mp_ks_map[string(request->key().c_str())];
-					reply->set_integer(temp_value_t->tag.integer);
-					reply->set_clientid(temp_value_t->tag.client_id);
+					reply->set_integer(0);
+					reply->set_clientid(0);
 					reply->set_key(temp_value_t->key,temp_value_t->key_sz);
 					reply->set_keysz(temp_value_t->key_sz);
 					reply->set_value(temp_value_t->value,temp_value_t->value_sz);
@@ -411,9 +411,9 @@ class key_store_service_impl: public KeyStoreService::Service {
 				#ifdef DEBUG_FLAG
 				std::cout << "	 Got request type: WRITE   "<<endl;
 				#endif
-				uint32_t index = insert_command(request);
+				(void)insert_command(request);
 
-				cout<<" Inserted at index :" <<index;
+				//cout<<" Inserted at index :" <<index<<endl;
 
 				// First send message to all server till this command is not written is not written
 
