@@ -30,15 +30,15 @@
 #include <grpcpp/channel.h>
 #include <grpcpp/client_context.h>
 #include <grpcpp/create_channel.h>
-//#include <grpcpp/security/credentials.h>
+
 
 //#define DEBUG_FLAG 1
 //#define DEBUG_LOG_QUEUE 1
 
-//#define INTERFACE "lo"
-#define INTERFACE "ens4"
+#define INTERFACE "lo"
+//#define INTERFACE "ens4"
 
-#define SIZE_OF_VALUE  1024
+#define SIZE_OF_VALUE  3
 
 #define ABD_NUMBER_OF_CLIENTS 3
 

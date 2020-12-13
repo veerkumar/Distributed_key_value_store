@@ -17,7 +17,7 @@ typedef unsigned int uint;
 //#define NUMBER_OF_CLIENTS 	1
 
 
-int num_secs = 10;
+int num_secs = 1;
 
 
 // Define your server information here
